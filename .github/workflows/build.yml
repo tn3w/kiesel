@@ -5,15 +5,46 @@ on:
     inputs:
       regions:
         description: Geofabrik regions, comma-separated
-        default: europe/liechtenstein,europe/switzerland
+        default: >-
+          europe/germany/baden-wuerttemberg,europe/germany/bayern,europe/germany/berlin,
+          europe/germany/brandenburg,europe/germany/bremen,europe/germany/hamburg,
+          europe/germany/hessen,europe/germany/mecklenburg-vorpommern,
+          europe/germany/niedersachsen,europe/germany/nordrhein-westfalen,
+          europe/germany/rheinland-pfalz,europe/germany/saarland,europe/germany/sachsen,
+          europe/germany/sachsen-anhalt,europe/germany/schleswig-holstein,
+          europe/germany/thueringen,europe/austria,europe/switzerland,europe/liechtenstein,
+          europe/netherlands,europe/belgium,europe/luxembourg,europe/denmark
 
 permissions:
   contents: write
 
 jobs:
-  packs:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    outputs:
+      regions: ${{ steps.split.outputs.regions }}
+    steps:
+      - id: split
+        env:
+          REGIONS: ${{ inputs.regions }}
+        run: echo "regions=$(jq -cR 'gsub("\\s"; "") | split(",")' <<< "$REGIONS")" >> "$GITHUB_OUTPUT"
+      - name: Create the "maps" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view maps || gh release create maps --title "Map packs" \
+            --notes "Open on your phone, download a region, then open it with Kiesel."
+
+  packs:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        region: ${{ fromJSON(needs.plan.outputs.regions) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,12 +54,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 9.8.2
-      - name: Build packs
-        run: gradle :core:buildPacks -Pregions=${{ inputs.regions }}
-      - name: Publish to the "maps" release
+      - name: Build ${{ matrix.region }}
+        run: gradle :core:buildPacks -Pregions=${{ matrix.region }}
+      - name: Upload to the "maps" release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view maps || gh release create maps --title "Map packs" \
-            --notes "Open on your phone, download a region, then open it with Kiesel."
-          gh release upload maps build/packs/*.zip --clobber
+        run: gh release upload maps build/packs/*.zip --clobber
