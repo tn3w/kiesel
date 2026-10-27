@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name" translatable="false">Kiesel</string>
+    <string name="attribution" translatable="false">© OpenMapTiles © OpenStreetMap contributors</string>
+    <string name="search_hint">Search places</string>
+    <string name="loading_places">Loading places…</string>
+    <string name="map_error">The map could not be loaded</string>
+    <string name="hold_to_start">Hold the map to set a start point</string>
+    <string name="dropped_pin">Dropped pin</string>
+    <string name="walk">Walk</string>
+    <string name="bike">Bike</string>
+    <string name="fastest">Fastest</string>
+    <string name="fastest_detail">Shortest time</string>
+    <string name="easiest">Easiest</string>
+    <string name="easiest_detail">Flat, smooth, few turns</string>
+    <string name="scenic">Scenic</string>
+    <string name="scenic_detail">Parks, woods and water</string>
+    <string name="quiet">Quiet</string>
+    <string name="quiet_detail">Away from busy streets</string>
+    <string name="no_route">No route</string>
+    <string name="go">Go</string>
+    <string name="end">End</string>
+    <string name="arrival">arrival</string>
+    <string name="navigating">Navigating</string>
+    <string name="locate">Show my location</string>
+    <string name="recenter">Re-center</string>
+    <string name="mute">Mute voice</string>
+    <string name="unmute">Unmute voice</string>
+    <string name="close">Close</string>
+    <string name="clear">Clear</string>
+    <string name="then">Then</string>
+    <string name="turn_sharp_left">turn sharp left</string>
+    <string name="turn_left">turn left</string>
+    <string name="turn_slight_left">bear left</string>
+    <string name="keep_left">keep left</string>
+    <string name="keep_right">keep right</string>
+    <string name="turn_slight_right">bear right</string>
+    <string name="turn_right">turn right</string>
+    <string name="turn_sharp_right">turn sharp right</string>
+    <string name="roundabout">at the roundabout, take exit %1$d</string>
+    <string name="arrive">arrive at your destination</string>
+    <string name="onto">%1$s onto %2$s</string>
+    <string name="and_then">%1$s, then %2$s</string>
+    <string name="rerouting">Rerouting</string>
+    <string name="arrived">You have arrived</string>
+    <string name="maps">Maps</string>
+    <string name="maps_hint">Download a region in your browser, then import it here.</string>
+    <string name="download">Download</string>
+    <string name="import_pack">Import</string>
+    <string name="import_failed">Not a Kiesel map pack</string>
+    <string name="delete">Delete</string>
+    <plurals name="in_meters">
+        <item quantity="one">In %1$d meter, %2$s</item>
+        <item quantity="other">In %1$d meters, %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="one">In %1$s kilometer, %2$s</item>
+        <item quantity="other">In %1$s kilometers, %2$s</item>
+    </plurals>
+</resources>

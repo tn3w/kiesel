@@ -1,5 +1,6 @@
 pluginManagement {
     repositories {
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -7,9 +8,10 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
+        google()
         mavenCentral()
     }
 }
 
 rootProject.name = "Kiesel"
-include(":core")
+include(":core", ":app")

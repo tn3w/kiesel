@@ -71,19 +71,20 @@ class ImportTest {
         val started = System.currentTimeMillis()
         val graph = importExtract(open = { File(path).inputStream() })
         println("import ${System.currentTimeMillis() - started} ms: " +
-            "${graph.latitudes.size} nodes, ${graph.from.size} edges, " +
-            "${graph.places.latitudes.size} places")
-        println("scenery ${graph.scenery.groupBy { it }.mapValues { it.value.size }}")
-        println("crowding ${graph.crowding.groupBy { it }.mapValues { it.value.size }}")
+            "${graph.nodeCount} nodes, ${graph.edgeCount} edges, " +
+            "${graph.places.size} places")
+        val edges = 0 until graph.edgeCount
+        println("scenery ${edges.groupingBy { graph.scenery(it) }.eachCount()}")
+        println("crowding ${edges.groupingBy { graph.crowding(it) }.eachCount()}")
         System.getenv("KIESEL_OUTPUT")?.takeIf { it.isNotEmpty() }
-            ?.let { File(it).outputStream().use(graph::write) }
+            ?.let { File(it).outputStream().buffered().use(graph::write) }
 
         val random = Random(1)
         val totals = Profile.entries.associateWith { DoubleArray(2) }
         var pairs = 0
         repeat(40) {
-            val start = random.nextInt(graph.latitudes.size)
-            val goal = random.nextInt(graph.latitudes.size)
+            val start = random.nextInt(graph.nodeCount)
+            val goal = random.nextInt(graph.nodeCount)
             val routes = Profile.entries.associateWith {
                 graph.route(start, goal, Mode.Walk, it)
             }

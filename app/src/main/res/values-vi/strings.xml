@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">Tìm địa điểm</string>
+    <string name="loading_places">Đang tải địa điểm…</string>
+    <string name="map_error">Không thể tải bản đồ</string>
+    <string name="hold_to_start">Nhấn giữ bản đồ để đặt điểm xuất phát</string>
+    <string name="dropped_pin">Vị trí đã đánh dấu</string>
+    <string name="walk">Đi bộ</string>
+    <string name="bike">Xe đạp</string>
+    <string name="fastest">Nhanh nhất</string>
+    <string name="fastest_detail">Thời gian ngắn nhất</string>
+    <string name="easiest">Dễ nhất</string>
+    <string name="easiest_detail">Bằng phẳng, êm, ít rẽ</string>
+    <string name="scenic">Phong cảnh</string>
+    <string name="scenic_detail">Công viên, rừng và mặt nước</string>
+    <string name="quiet">Yên tĩnh</string>
+    <string name="quiet_detail">Tránh đường đông đúc</string>
+    <string name="no_route">Không có lộ trình</string>
+    <string name="go">Đi</string>
+    <string name="end">Kết thúc</string>
+    <string name="arrival">đến nơi</string>
+    <string name="navigating">Đang dẫn đường</string>
+    <string name="locate">Hiện vị trí của tôi</string>
+    <string name="recenter">Căn giữa</string>
+    <string name="mute">Tắt giọng nói</string>
+    <string name="unmute">Bật giọng nói</string>
+    <string name="close">Đóng</string>
+    <string name="clear">Xóa</string>
+    <string name="then">Sau đó</string>
+    <string name="turn_sharp_left">rẽ gắt sang trái</string>
+    <string name="turn_left">rẽ trái</string>
+    <string name="turn_slight_left">chếch sang trái</string>
+    <string name="keep_left">đi về bên trái</string>
+    <string name="keep_right">đi về bên phải</string>
+    <string name="turn_slight_right">chếch sang phải</string>
+    <string name="turn_right">rẽ phải</string>
+    <string name="turn_sharp_right">rẽ gắt sang phải</string>
+    <string name="roundabout">tại vòng xuyến, đi theo lối ra thứ %1$d</string>
+    <string name="arrive">bạn sẽ đến nơi</string>
+    <string name="onto">%1$s vào %2$s</string>
+    <string name="and_then">%1$s, sau đó %2$s</string>
+    <string name="rerouting">Đang tính lại lộ trình</string>
+    <string name="arrived">Bạn đã đến nơi</string>
+    <string name="maps">Bản đồ</string>
+    <string name="maps_hint">Tải một khu vực trong trình duyệt, rồi nhập vào đây.</string>
+    <string name="download">Tải xuống</string>
+    <string name="import_pack">Nhập</string>
+    <string name="import_failed">Không phải gói bản đồ Kiesel</string>
+    <string name="delete">Xóa</string>
+    <plurals name="in_meters">
+        <item quantity="other">Sau %1$d mét, %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">Sau %1$s ki-lô-mét, %2$s</item>
+    </plurals>
+</resources>

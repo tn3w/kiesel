@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">場所を検索</string>
+    <string name="loading_places">場所を読み込み中…</string>
+    <string name="map_error">地図を読み込めませんでした</string>
+    <string name="hold_to_start">地図を長押しして出発地を設定</string>
+    <string name="dropped_pin">ピンの位置</string>
+    <string name="walk">徒歩</string>
+    <string name="bike">自転車</string>
+    <string name="fastest">最速</string>
+    <string name="fastest_detail">最短時間</string>
+    <string name="easiest">らくらく</string>
+    <string name="easiest_detail">平坦で滑らか、曲がり角が少ない</string>
+    <string name="scenic">景色</string>
+    <string name="scenic_detail">公園、森、水辺</string>
+    <string name="quiet">静か</string>
+    <string name="quiet_detail">にぎやかな通りを避ける</string>
+    <string name="no_route">ルートなし</string>
+    <string name="go">出発</string>
+    <string name="end">終了</string>
+    <string name="arrival">到着</string>
+    <string name="navigating">ナビゲーション中</string>
+    <string name="locate">現在地を表示</string>
+    <string name="recenter">中央に戻す</string>
+    <string name="mute">音声をオフ</string>
+    <string name="unmute">音声をオン</string>
+    <string name="close">閉じる</string>
+    <string name="clear">消去</string>
+    <string name="then">その先</string>
+    <string name="turn_sharp_left">大きく左方向です</string>
+    <string name="turn_left">左方向です</string>
+    <string name="turn_slight_left">斜め左方向です</string>
+    <string name="keep_left">左寄りに進みます</string>
+    <string name="keep_right">右寄りに進みます</string>
+    <string name="turn_slight_right">斜め右方向です</string>
+    <string name="turn_right">右方向です</string>
+    <string name="turn_sharp_right">大きく右方向です</string>
+    <string name="roundabout">ロータリーで%1$d番目の出口です</string>
+    <string name="arrive">目的地に到着します</string>
+    <string name="onto">%1$s、%2$s</string>
+    <string name="and_then">%1$s、その先%2$s</string>
+    <string name="rerouting">ルートを再検索します</string>
+    <string name="arrived">目的地に到着しました</string>
+    <string name="maps">地図</string>
+    <string name="maps_hint">ブラウザで地域をダウンロードして、ここでインポートします。</string>
+    <string name="download">ダウンロード</string>
+    <string name="import_pack">インポート</string>
+    <string name="import_failed">Kiesel の地図パックではありません</string>
+    <string name="delete">削除</string>
+    <plurals name="in_meters">
+        <item quantity="other">%1$dメートル先、%2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">%1$sキロ先、%2$s</item>
+    </plurals>
+</resources>

@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">জায়গা খুঁজুন</string>
+    <string name="loading_places">জায়গাগুলো লোড হচ্ছে…</string>
+    <string name="map_error">ম্যাপ লোড করা যায়নি</string>
+    <string name="hold_to_start">শুরুর জায়গা ঠিক করতে ম্যাপে চেপে ধরে রাখুন</string>
+    <string name="dropped_pin">চিহ্নিত জায়গা</string>
+    <string name="walk">হেঁটে</string>
+    <string name="bike">সাইকেল</string>
+    <string name="fastest">দ্রুততম</string>
+    <string name="fastest_detail">সবচেয়ে কম সময়</string>
+    <string name="easiest">সহজতম</string>
+    <string name="easiest_detail">সমতল, মসৃণ, কম বাঁক</string>
+    <string name="scenic">মনোরম</string>
+    <string name="scenic_detail">পার্ক, বন আর জল</string>
+    <string name="quiet">নিরিবিলি</string>
+    <string name="quiet_detail">ব্যস্ত রাস্তা থেকে দূরে</string>
+    <string name="no_route">কোনো রুট নেই</string>
+    <string name="go">চলুন</string>
+    <string name="end">শেষ করুন</string>
+    <string name="arrival">পৌঁছানো</string>
+    <string name="navigating">নেভিগেশন চলছে</string>
+    <string name="locate">আমার অবস্থান দেখান</string>
+    <string name="recenter">মাঝখানে আনুন</string>
+    <string name="mute">ভয়েস বন্ধ করুন</string>
+    <string name="unmute">ভয়েস চালু করুন</string>
+    <string name="close">বন্ধ করুন</string>
+    <string name="clear">মুছুন</string>
+    <string name="then">তারপর</string>
+    <string name="turn_sharp_left">তীক্ষ্ণভাবে বাঁয়ে ঘুরুন</string>
+    <string name="turn_left">বাঁয়ে ঘুরুন</string>
+    <string name="turn_slight_left">সামান্য বাঁয়ে ঘুরুন</string>
+    <string name="keep_left">বাঁ দিকে থাকুন</string>
+    <string name="keep_right">ডান দিকে থাকুন</string>
+    <string name="turn_slight_right">সামান্য ডানে ঘুরুন</string>
+    <string name="turn_right">ডানে ঘুরুন</string>
+    <string name="turn_sharp_right">তীক্ষ্ণভাবে ডানে ঘুরুন</string>
+    <string name="roundabout">গোলচত্বরে %1$d নম্বর বহির্গমন নিন</string>
+    <string name="arrive">আপনি গন্তব্যে পৌঁছাবেন</string>
+    <string name="onto">%2$s-এ %1$s</string>
+    <string name="and_then">%1$s, তারপর %2$s</string>
+    <string name="rerouting">রুট আবার হিসাব করা হচ্ছে</string>
+    <string name="arrived">আপনি গন্তব্যে পৌঁছেছেন</string>
+    <string name="maps">ম্যাপ</string>
+    <string name="maps_hint">ব্রাউজারে একটি অঞ্চল ডাউনলোড করুন, তারপর এখানে ইমপোর্ট করুন।</string>
+    <string name="download">ডাউনলোড</string>
+    <string name="import_pack">ইমপোর্ট</string>
+    <string name="import_failed">এটি Kiesel ম্যাপ প্যাক নয়</string>
+    <string name="delete">মুছুন</string>
+    <plurals name="in_meters">
+        <item quantity="other">%1$d মিটার পরে %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">%1$s কিলোমিটার পরে %2$s</item>
+    </plurals>
+</resources>

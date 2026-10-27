@@ -1,0 +1,57 @@
+<resources>
+    <string name="search_hint">Orte suchen</string>
+    <string name="loading_places">Orte werden geladen …</string>
+    <string name="map_error">Die Karte konnte nicht geladen werden</string>
+    <string name="hold_to_start">Karte gedrückt halten, um einen Startpunkt zu setzen</string>
+    <string name="dropped_pin">Markierter Ort</string>
+    <string name="walk">Zu Fuß</string>
+    <string name="bike">Fahrrad</string>
+    <string name="fastest">Schnellste</string>
+    <string name="fastest_detail">Kürzeste Zeit</string>
+    <string name="easiest">Leichteste</string>
+    <string name="easiest_detail">Flach, glatt, wenige Abbiegungen</string>
+    <string name="scenic">Malerisch</string>
+    <string name="scenic_detail">Parks, Wälder und Wasser</string>
+    <string name="quiet">Ruhig</string>
+    <string name="quiet_detail">Abseits belebter Straßen</string>
+    <string name="no_route">Keine Route</string>
+    <string name="go">Los</string>
+    <string name="end">Beenden</string>
+    <string name="arrival">Ankunft</string>
+    <string name="navigating">Navigation aktiv</string>
+    <string name="locate">Meinen Standort zeigen</string>
+    <string name="recenter">Zentrieren</string>
+    <string name="mute">Sprachansage aus</string>
+    <string name="unmute">Sprachansage an</string>
+    <string name="close">Schließen</string>
+    <string name="clear">Löschen</string>
+    <string name="then">Dann</string>
+    <string name="turn_sharp_left">scharf links abbiegen</string>
+    <string name="turn_left">links abbiegen</string>
+    <string name="turn_slight_left">leicht links abbiegen</string>
+    <string name="keep_left">links halten</string>
+    <string name="keep_right">rechts halten</string>
+    <string name="turn_slight_right">leicht rechts abbiegen</string>
+    <string name="turn_right">rechts abbiegen</string>
+    <string name="turn_sharp_right">scharf rechts abbiegen</string>
+    <string name="roundabout">im Kreisverkehr die %1$d. Ausfahrt nehmen</string>
+    <string name="arrive">das Ziel erreichen</string>
+    <string name="onto">%1$s auf %2$s</string>
+    <string name="and_then">%1$s, dann %2$s</string>
+    <string name="rerouting">Route wird neu berechnet</string>
+    <string name="arrived">Sie haben Ihr Ziel erreicht</string>
+    <string name="maps">Karten</string>
+    <string name="maps_hint">Lade eine Region im Browser herunter und importiere sie dann hier.</string>
+    <string name="download">Herunterladen</string>
+    <string name="import_pack">Importieren</string>
+    <string name="import_failed">Kein Kiesel-Kartenpaket</string>
+    <string name="delete">Löschen</string>
+    <plurals name="in_meters">
+        <item quantity="one">In %1$d Meter %2$s</item>
+        <item quantity="other">In %1$d Metern %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="one">In %1$s Kilometer %2$s</item>
+        <item quantity="other">In %1$s Kilometern %2$s</item>
+    </plurals>
+</resources>

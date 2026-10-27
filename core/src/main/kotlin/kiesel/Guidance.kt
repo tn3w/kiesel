@@ -35,9 +35,9 @@ internal fun Graph.maneuvers(
     while (index < chain.size) {
         val arrival = chain[index - 1]
         val departure = chain[index]
-        if (roundabout[departure / 2] && !roundabout[arrival / 2]) {
-            val exit = (index until chain.size).firstOrNull { !roundabout[chain[it] / 2] }
-                ?: chain.size
+        if (isRoundabout(departure / 2) && !isRoundabout(arrival / 2)) {
+            val exit = (index until chain.size)
+                .firstOrNull { !isRoundabout(chain[it] / 2) } ?: chain.size
             val passed = (index until exit - 1).count { hasExit(chain[it], mode) }
             val street = chain.getOrNull(exit)?.let { streetName(it / 2) }
             result += Maneuver(Turn.Roundabout, street, arcEnds[index - 1], passed + 1)
@@ -76,7 +76,7 @@ private fun Graph.alternatives(arrival: Int, mode: Mode) = buildList {
 }
 
 private fun Graph.hasExit(arc: Int, mode: Mode) =
-    alternatives(arc, mode).any { !roundabout[it / 2] }
+    alternatives(arc, mode).any { !isRoundabout(it / 2) }
 
 /** What to say: [meters] is null when the maneuver is due now. */
 class Announcement(val maneuver: Maneuver, val meters: Double?, val then: Maneuver?)

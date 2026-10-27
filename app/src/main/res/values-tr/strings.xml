@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">Yer ara</string>
+    <string name="loading_places">Yerler yükleniyor…</string>
+    <string name="map_error">Harita yüklenemedi</string>
+    <string name="hold_to_start">Başlangıç noktası belirlemek için haritaya basılı tutun</string>
+    <string name="dropped_pin">İşaretlenen konum</string>
+    <string name="walk">Yürüyüş</string>
+    <string name="bike">Bisiklet</string>
+    <string name="fastest">En hızlı</string>
+    <string name="fastest_detail">En kısa süre</string>
+    <string name="easiest">En kolay</string>
+    <string name="easiest_detail">Düz, pürüzsüz, az dönüş</string>
+    <string name="scenic">Manzaralı</string>
+    <string name="scenic_detail">Parklar, ormanlar ve su</string>
+    <string name="quiet">Sakin</string>
+    <string name="quiet_detail">Kalabalık sokaklardan uzak</string>
+    <string name="no_route">Rota yok</string>
+    <string name="go">Başla</string>
+    <string name="end">Bitir</string>
+    <string name="arrival">varış</string>
+    <string name="navigating">Navigasyon etkin</string>
+    <string name="locate">Konumumu göster</string>
+    <string name="recenter">Ortala</string>
+    <string name="mute">Sesi kapat</string>
+    <string name="unmute">Sesi aç</string>
+    <string name="close">Kapat</string>
+    <string name="clear">Temizle</string>
+    <string name="then">Sonra</string>
+    <string name="turn_sharp_left">keskin sola dönün</string>
+    <string name="turn_left">sola dönün</string>
+    <string name="turn_slight_left">hafif sola dönün</string>
+    <string name="keep_left">soldan devam edin</string>
+    <string name="keep_right">sağdan devam edin</string>
+    <string name="turn_slight_right">hafif sağa dönün</string>
+    <string name="turn_right">sağa dönün</string>
+    <string name="turn_sharp_right">keskin sağa dönün</string>
+    <string name="roundabout">döner kavşakta %1$d. çıkışı kullanın</string>
+    <string name="arrive">hedefinize ulaşacaksınız</string>
+    <string name="onto">%2$s yönüne %1$s</string>
+    <string name="and_then">%1$s, ardından %2$s</string>
+    <string name="rerouting">Rota yeniden hesaplanıyor</string>
+    <string name="arrived">Hedefinize ulaştınız</string>
+    <string name="maps">Haritalar</string>
+    <string name="maps_hint">Bir bölgeyi tarayıcıda indirin, ardından buraya aktarın.</string>
+    <string name="download">İndir</string>
+    <string name="import_pack">İçe aktar</string>
+    <string name="import_failed">Kiesel harita paketi değil</string>
+    <string name="delete">Sil</string>
+    <plurals name="in_meters">
+        <item quantity="other">%1$d metre sonra %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">%1$s kilometre sonra %2$s</item>
+    </plurals>
+</resources>

@@ -243,7 +243,7 @@ private class ArcQueue {
 internal fun Graph.arcCost(arc: Int, mode: Mode, profile: Profile): Double {
     val edge = arc / 2
     val speed = mode.speed(road(edge), surface(edge))
-    val against = mode == Mode.Bike && oneway[edge] && arc % 2 == 1
+    val against = mode == Mode.Bike && isOneway(edge) && arc % 2 == 1
     if (speed == 0.0 || against) return Double.POSITIVE_INFINITY
     return seconds(arc, mode) * profile.penalty(this, edge, climb(arc))
 }

@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">مقامات تلاش کریں</string>
+    <string name="loading_places">مقامات لوڈ ہو رہے ہیں…</string>
+    <string name="map_error">نقشہ لوڈ نہیں ہو سکا</string>
+    <string name="hold_to_start">نقطۂ آغاز مقرر کرنے کے لیے نقشے کو دبائے رکھیں</string>
+    <string name="dropped_pin">نشان زدہ مقام</string>
+    <string name="walk">پیدل</string>
+    <string name="bike">سائیکل</string>
+    <string name="fastest">تیز ترین</string>
+    <string name="fastest_detail">کم سے کم وقت</string>
+    <string name="easiest">آسان ترین</string>
+    <string name="easiest_detail">ہموار، کم موڑ</string>
+    <string name="scenic">خوبصورت</string>
+    <string name="scenic_detail">پارک، جنگل اور پانی</string>
+    <string name="quiet">پرسکون</string>
+    <string name="quiet_detail">مصروف سڑکوں سے دور</string>
+    <string name="no_route">کوئی راستہ نہیں</string>
+    <string name="go">چلیں</string>
+    <string name="end">ختم کریں</string>
+    <string name="arrival">آمد</string>
+    <string name="navigating">نیویگیشن جاری ہے</string>
+    <string name="locate">میرا مقام دکھائیں</string>
+    <string name="recenter">مرکز میں لائیں</string>
+    <string name="mute">آواز بند کریں</string>
+    <string name="unmute">آواز چالو کریں</string>
+    <string name="close">بند کریں</string>
+    <string name="clear">صاف کریں</string>
+    <string name="then">پھر</string>
+    <string name="turn_sharp_left">تیزی سے بائیں مڑیں</string>
+    <string name="turn_left">بائیں مڑیں</string>
+    <string name="turn_slight_left">ہلکا سا بائیں مڑیں</string>
+    <string name="keep_left">بائیں جانب رہیں</string>
+    <string name="keep_right">دائیں جانب رہیں</string>
+    <string name="turn_slight_right">ہلکا سا دائیں مڑیں</string>
+    <string name="turn_right">دائیں مڑیں</string>
+    <string name="turn_sharp_right">تیزی سے دائیں مڑیں</string>
+    <string name="roundabout">گول چکر پر %1$d نمبر ایگزٹ لیں</string>
+    <string name="arrive">آپ اپنی منزل پر پہنچ جائیں گے</string>
+    <string name="onto">%2$s کی طرف %1$s</string>
+    <string name="and_then">%1$s، پھر %2$s</string>
+    <string name="rerouting">راستہ دوبارہ ترتیب دیا جا رہا ہے</string>
+    <string name="arrived">آپ اپنی منزل پر پہنچ گئے ہیں</string>
+    <string name="maps">نقشے</string>
+    <string name="maps_hint">براؤزر میں کوئی علاقہ ڈاؤن لوڈ کریں، پھر یہاں درآمد کریں۔</string>
+    <string name="download">ڈاؤن لوڈ</string>
+    <string name="import_pack">درآمد</string>
+    <string name="import_failed">یہ Kiesel نقشہ پیک نہیں ہے</string>
+    <string name="delete">حذف کریں</string>
+    <plurals name="in_meters">
+        <item quantity="other">%1$d میٹر بعد %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">%1$s کلومیٹر بعد %2$s</item>
+    </plurals>
+</resources>

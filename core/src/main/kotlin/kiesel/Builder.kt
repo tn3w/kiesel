@@ -1,8 +1,9 @@
 package kiesel
 
 import java.io.File
-import java.io.ObjectOutputStream
+import java.io.OutputStream
 import java.net.URI
+import java.nio.file.Files
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -27,9 +28,9 @@ private fun buildPack(region: String, work: File, output: File) {
     val heights = Heights.of(graph, elevation::at)
     val pack = File(output, "kiesel-$name.zip")
     ZipOutputStream(pack.outputStream().buffered()).use { zip ->
-        zip.putObject("$name/graph", graph)
-        zip.putObject("$name/heights", heights)
-        zip.putFile("$name/tiles.pmtiles", tiles)
+        zip.putEntry("$name/graph", graph::write)
+        zip.putEntry("$name/heights", heights::write)
+        zip.putEntry("$name/tiles.pmtiles") { Files.copy(tiles.toPath(), it) }
     }
     println("$region → ${pack.path} (${pack.length() / 1_000_000} MB)")
 }
@@ -66,18 +67,9 @@ private fun download(url: String, file: File): File {
     return file
 }
 
-private fun ZipOutputStream.putObject(name: String, value: Any) {
+private fun ZipOutputStream.putEntry(name: String, write: (OutputStream) -> Unit) {
     putNextEntry(ZipEntry(name))
-    ObjectOutputStream(this).run {
-        writeObject(value)
-        flush()
-    }
-    closeEntry()
-}
-
-private fun ZipOutputStream.putFile(name: String, file: File) {
-    putNextEntry(ZipEntry(name))
-    file.inputStream().use { it.copyTo(this) }
+    write(this)
     closeEntry()
 }
 

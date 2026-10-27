@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">搜索地点</string>
+    <string name="loading_places">正在加载地点…</string>
+    <string name="map_error">无法加载地图</string>
+    <string name="hold_to_start">长按地图设置起点</string>
+    <string name="dropped_pin">标记的位置</string>
+    <string name="walk">步行</string>
+    <string name="bike">骑行</string>
+    <string name="fastest">最快</string>
+    <string name="fastest_detail">用时最短</string>
+    <string name="easiest">最轻松</string>
+    <string name="easiest_detail">平坦顺畅，转弯少</string>
+    <string name="scenic">风景</string>
+    <string name="scenic_detail">公园、树林和水边</string>
+    <string name="quiet">安静</string>
+    <string name="quiet_detail">远离繁忙街道</string>
+    <string name="no_route">没有路线</string>
+    <string name="go">出发</string>
+    <string name="end">结束</string>
+    <string name="arrival">到达</string>
+    <string name="navigating">正在导航</string>
+    <string name="locate">显示我的位置</string>
+    <string name="recenter">重新居中</string>
+    <string name="mute">关闭语音</string>
+    <string name="unmute">开启语音</string>
+    <string name="close">关闭</string>
+    <string name="clear">清除</string>
+    <string name="then">然后</string>
+    <string name="turn_sharp_left">向左急转</string>
+    <string name="turn_left">左转</string>
+    <string name="turn_slight_left">稍向左转</string>
+    <string name="keep_left">靠左</string>
+    <string name="keep_right">靠右</string>
+    <string name="turn_slight_right">稍向右转</string>
+    <string name="turn_right">右转</string>
+    <string name="turn_sharp_right">向右急转</string>
+    <string name="roundabout">在环岛从第%1$d个出口离开</string>
+    <string name="arrive">到达目的地</string>
+    <string name="onto">%1$s进入%2$s</string>
+    <string name="and_then">%1$s，然后%2$s</string>
+    <string name="rerouting">正在重新规划路线</string>
+    <string name="arrived">您已到达目的地</string>
+    <string name="maps">地图</string>
+    <string name="maps_hint">在浏览器中下载地区，然后在这里导入。</string>
+    <string name="download">下载</string>
+    <string name="import_pack">导入</string>
+    <string name="import_failed">不是 Kiesel 地图包</string>
+    <string name="delete">删除</string>
+    <plurals name="in_meters">
+        <item quantity="other">%1$d米后%2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">%1$s公里后%2$s</item>
+    </plurals>
+</resources>

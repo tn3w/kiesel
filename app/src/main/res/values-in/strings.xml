@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">Cari tempat</string>
+    <string name="loading_places">Memuat tempat…</string>
+    <string name="map_error">Peta tidak dapat dimuat</string>
+    <string name="hold_to_start">Tekan lama peta untuk menetapkan titik awal</string>
+    <string name="dropped_pin">Lokasi ditandai</string>
+    <string name="walk">Jalan kaki</string>
+    <string name="bike">Sepeda</string>
+    <string name="fastest">Tercepat</string>
+    <string name="fastest_detail">Waktu tersingkat</string>
+    <string name="easiest">Termudah</string>
+    <string name="easiest_detail">Datar, mulus, sedikit belokan</string>
+    <string name="scenic">Indah</string>
+    <string name="scenic_detail">Taman, hutan, dan air</string>
+    <string name="quiet">Tenang</string>
+    <string name="quiet_detail">Jauh dari jalan ramai</string>
+    <string name="no_route">Tidak ada rute</string>
+    <string name="go">Mulai</string>
+    <string name="end">Akhiri</string>
+    <string name="arrival">tiba</string>
+    <string name="navigating">Navigasi aktif</string>
+    <string name="locate">Tampilkan lokasi saya</string>
+    <string name="recenter">Pusatkan</string>
+    <string name="mute">Bisukan suara</string>
+    <string name="unmute">Nyalakan suara</string>
+    <string name="close">Tutup</string>
+    <string name="clear">Hapus</string>
+    <string name="then">Lalu</string>
+    <string name="turn_sharp_left">belok tajam ke kiri</string>
+    <string name="turn_left">belok kiri</string>
+    <string name="turn_slight_left">belok sedikit ke kiri</string>
+    <string name="keep_left">tetap di kiri</string>
+    <string name="keep_right">tetap di kanan</string>
+    <string name="turn_slight_right">belok sedikit ke kanan</string>
+    <string name="turn_right">belok kanan</string>
+    <string name="turn_sharp_right">belok tajam ke kanan</string>
+    <string name="roundabout">di bundaran, ambil jalan keluar ke-%1$d</string>
+    <string name="arrive">Anda akan tiba di tujuan</string>
+    <string name="onto">%1$s ke %2$s</string>
+    <string name="and_then">%1$s, lalu %2$s</string>
+    <string name="rerouting">Menghitung ulang rute</string>
+    <string name="arrived">Anda telah tiba di tujuan</string>
+    <string name="maps">Peta</string>
+    <string name="maps_hint">Unduh wilayah di browser, lalu impor di sini.</string>
+    <string name="download">Unduh</string>
+    <string name="import_pack">Impor</string>
+    <string name="import_failed">Bukan paket peta Kiesel</string>
+    <string name="delete">Hapus</string>
+    <plurals name="in_meters">
+        <item quantity="other">Dalam %1$d meter, %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">Dalam %1$s kilometer, %2$s</item>
+    </plurals>
+</resources>

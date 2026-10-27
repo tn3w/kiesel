@@ -1,23 +1,27 @@
 package kiesel
 
-import java.io.InputStream
-import java.io.ObjectInputStream
-import java.io.Serializable
+import java.io.File
+import java.io.OutputStream
+import java.nio.IntBuffer
+import java.nio.ShortBuffer
 import kotlin.math.ceil
 import kotlin.math.floor
 
-/** Ground heights over a region in whole meters, [SAMPLES_PER_DEGREE] per degree. */
-class Heights(
-    private val south: Double,
-    private val west: Double,
+/**
+ * Ground heights over a region in whole meters, [SAMPLES_PER_DEGREE] per degree;
+ * [south] and [west] count samples.
+ */
+class Heights internal constructor(
+    private val south: Int,
+    private val west: Int,
     private val rows: Int,
     private val columns: Int,
-    private val meters: ShortArray,
-) : Serializable {
+    private val meters: ShortBuffer,
+) {
     /** Meters above sea level, bilinear; 0 outside the region. */
     fun at(point: LatLon): Double {
-        val row = (point.latitude - south) * SAMPLES_PER_DEGREE
-        val column = (point.longitude - west) * SAMPLES_PER_DEGREE
+        val row = point.latitude * SAMPLES_PER_DEGREE - south
+        val column = point.longitude * SAMPLES_PER_DEGREE - west
         if (row < 0 || column < 0 || row >= rows - 1 || column >= columns - 1) return 0.0
         val top = floor(row).toInt()
         val left = floor(column).toInt()
@@ -29,28 +33,34 @@ class Heights(
         return lerp(lower, upper, down)
     }
 
+    /** Leaves [output] open. */
+    fun write(output: OutputStream) {
+        val header = IntBuffer.wrap(intArrayOf(south, west, rows, columns))
+        output.writeColumns(header, meters)
+    }
+
     companion object {
-        private const val serialVersionUID = 1L
+        fun read(file: File) = with(Columns(mapFile(file))) {
+            val header = ints()
+            Heights(header[0], header[1], header[2], header[3], shorts())
+        }
 
         /** Samples [height] over the area the graph covers. */
         fun of(graph: Graph, height: (Double, Double) -> Double): Heights {
-            val south = floor(graph.latitudes.min().toDouble() * SAMPLES_PER_DEGREE)
-            val west = floor(graph.longitudes.min().toDouble() * SAMPLES_PER_DEGREE)
-            val north = ceil(graph.latitudes.max().toDouble() * SAMPLES_PER_DEGREE)
-            val east = ceil(graph.longitudes.max().toDouble() * SAMPLES_PER_DEGREE)
-            val rows = (north - south).toInt() + 1
-            val columns = (east - west).toInt() + 1
+            val (southWest, northEast) = graph.bounds()
+            val south = floor(southWest.latitude * SAMPLES_PER_DEGREE).toInt()
+            val west = floor(southWest.longitude * SAMPLES_PER_DEGREE).toInt()
+            val north = ceil(northEast.latitude * SAMPLES_PER_DEGREE).toInt()
+            val east = ceil(northEast.longitude * SAMPLES_PER_DEGREE).toInt()
+            val rows = north - south + 1
+            val columns = east - west + 1
             val meters = ShortArray(rows * columns) {
-                val latitude = (south + it / columns) / SAMPLES_PER_DEGREE
-                val longitude = (west + it % columns) / SAMPLES_PER_DEGREE
+                val latitude = (south + it / columns).toDouble() / SAMPLES_PER_DEGREE
+                val longitude = (west + it % columns).toDouble() / SAMPLES_PER_DEGREE
                 height(latitude, longitude).toInt().toShort()
             }
-            val degrees = SAMPLES_PER_DEGREE.toDouble()
-            return Heights(south / degrees, west / degrees, rows, columns, meters)
+            return Heights(south, west, rows, columns, ShortBuffer.wrap(meters))
         }
-
-        fun read(input: InputStream) =
-            ObjectInputStream(input.buffered()).use { it.readObject() as Heights }
     }
 }
 

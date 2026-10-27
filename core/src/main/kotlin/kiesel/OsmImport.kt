@@ -2,6 +2,7 @@ package kiesel
 
 import com.wolt.osm.parallelpbf.ParallelBinaryParser
 import java.io.InputStream
+import kotlin.math.roundToInt
 
 private class RawWay(
     val nodeIds: LongArray,
@@ -13,11 +14,14 @@ private class RawWay(
     val water: Boolean?,
 )
 
-/** Builds a [Graph] from an OSM PBF extract; [open] is called once per pass. */
+/**
+ * Builds a [Graph] from an OSM PBF extract; [open] is called once per pass.
+ * The importer's node tables are garbage before the graph is compiled.
+ */
 fun importExtract(
     open: () -> InputStream,
     heights: (Double, Double) -> Double = { _, _ -> 0.0 },
-): Graph = Importer(open, heights).run()
+): Graph = Importer(open, heights).run().build()
 
 private class Importer(
     private val open: () -> InputStream,
@@ -26,13 +30,13 @@ private class Importer(
     private val builder = GraphBuilder(heights)
     private val ways = readWays(open)
     private val ids = uniqueSorted(ways)
-    private val latitudes = DoubleArray(ids.size) { Double.NaN }
-    private val longitudes = DoubleArray(ids.size) { Double.NaN }
+    private val latitudes = IntArray(ids.size) { UNKNOWN }
+    private val longitudes = IntArray(ids.size)
     private val uses = IntArray(ids.size)
     private val nodeOf = IntArray(ids.size) { -1 }
     private val namedStreets = HashSet<String>()
 
-    fun run(): Graph {
+    fun run(): GraphBuilder {
         readNodes()
         ways.filter { it.road != null }.forEach { way ->
             val positions = positionsOf(way)
@@ -45,22 +49,33 @@ private class Importer(
             if (way.road != null) addStreet(way, positions)
             if (way.water != null) addArea(way.water, positions)
         }
-        return builder.build()
+        return builder
     }
 
     private fun positionsOf(way: RawWay) =
         IntArray(way.nodeIds.size) { ids.binarySearch(way.nodeIds[it]) }
 
-    private fun isKnown(position: Int) = !latitudes[position].isNaN()
+    private fun isKnown(position: Int) = latitudes[position] != UNKNOWN
 
-    private fun point(position: Int) = LatLon(latitudes[position], longitudes[position])
+    private fun latitude(position: Int) = latitudes[position] / FIXED_POINT
+
+    private fun longitude(position: Int) = longitudes[position] / FIXED_POINT
+
+    private fun point(position: Int) = LatLon(latitude(position), longitude(position))
+
+    /** Interleaved latitude, longitude of [positions]. */
+    private fun coordinates(positions: IntArray, from: Int, count: Int) =
+        DoubleArray(count * 2) {
+            val position = positions[from + it / 2]
+            if (it % 2 == 0) latitude(position) else longitude(position)
+        }
 
     private fun readNodes() = parse(open) {
         onNode { node ->
             val position = ids.binarySearch(node.id)
             if (position >= 0) {
-                latitudes[position] = node.lat
-                longitudes[position] = node.lon
+                latitudes[position] = (node.lat * FIXED_POINT).roundToInt()
+                longitudes[position] = (node.lon * FIXED_POINT).roundToInt()
             }
             val name = node.tags["name"]
             if (name != null && node.tags.keys.any { it in PLACE_KEYS }) {
@@ -73,7 +88,7 @@ private class Importer(
     private fun addStreet(way: RawWay, positions: IntArray) {
         var start = 0
         while (start < positions.size) {
-            if (latitudes[positions[start]].isNaN()) {
+            if (!isKnown(positions[start])) {
                 start++
                 continue
             }
@@ -95,10 +110,7 @@ private class Importer(
     }
 
     private fun addEdge(way: RawWay, run: IntArray, first: Int, last: Int) {
-        val via = DoubleArray((last - first - 1) * 2) {
-            val position = run[first + 1 + it / 2]
-            if (it % 2 == 0) latitudes[position] else longitudes[position]
-        }
+        val via = coordinates(run, first + 1, last - first - 1)
         val from = node(run[first])
         val to = node(run[last])
         if (from == to && via.isEmpty()) return
@@ -108,25 +120,21 @@ private class Importer(
     }
 
     private fun node(position: Int) = nodeOf[position].takeIf { it >= 0 }
-        ?: builder.addNode(latitudes[position], longitudes[position])
+        ?: builder.addNode(latitude(position), longitude(position))
             .also { nodeOf[position] = it }
 
     private fun addName(way: RawWay, position: Int) {
         val name = way.name ?: return
-        val district = "${(latitudes[position] * 100).toInt()}," +
-            "${(longitudes[position] * 100).toInt()}"
+        val district = "${(latitude(position) * 100).toInt()}," +
+            "${(longitude(position) * 100).toInt()}"
         if (namedStreets.add("$name@$district")) {
             builder.addPlace(Place(name, point(position)))
         }
     }
 
     private fun addArea(water: Boolean, positions: IntArray) {
-        if (positions.any { latitudes[it].isNaN() }) return
-        val ring = DoubleArray(positions.size * 2) {
-            val position = positions[it / 2]
-            if (it % 2 == 0) latitudes[position] else longitudes[position]
-        }
-        builder.addArea(water, ring)
+        if (!positions.all(::isKnown)) return
+        builder.addArea(water, coordinates(positions, 0, positions.size))
     }
 }
 
@@ -228,6 +236,10 @@ internal fun waterOf(tags: Map<String, String>): Boolean? = when {
     tags["leisure"] in setOf("park", "garden", "nature_reserve") -> false
     else -> null
 }
+
+/** OSM stores coordinates as 1e-7 degree integers. */
+private const val FIXED_POINT = 1e7
+private const val UNKNOWN = Int.MIN_VALUE
 
 private val ROUNDABOUTS = setOf("roundabout", "circular")
 

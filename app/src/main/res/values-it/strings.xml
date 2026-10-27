@@ -1,0 +1,57 @@
+<resources>
+    <string name="search_hint">Cerca luoghi</string>
+    <string name="loading_places">Caricamento dei luoghi…</string>
+    <string name="map_error">Impossibile caricare la mappa</string>
+    <string name="hold_to_start">Tieni premuto sulla mappa per impostare un punto di partenza</string>
+    <string name="dropped_pin">Luogo segnato</string>
+    <string name="walk">A piedi</string>
+    <string name="bike">Bici</string>
+    <string name="fastest">Più veloce</string>
+    <string name="fastest_detail">Tempo minore</string>
+    <string name="easiest">Più facile</string>
+    <string name="easiest_detail">Piano, liscio, poche svolte</string>
+    <string name="scenic">Panoramico</string>
+    <string name="scenic_detail">Parchi, boschi e acqua</string>
+    <string name="quiet">Tranquillo</string>
+    <string name="quiet_detail">Lontano dalle strade trafficate</string>
+    <string name="no_route">Nessun percorso</string>
+    <string name="go">Vai</string>
+    <string name="end">Fine</string>
+    <string name="arrival">arrivo</string>
+    <string name="navigating">Navigazione in corso</string>
+    <string name="locate">Mostra la mia posizione</string>
+    <string name="recenter">Centra</string>
+    <string name="mute">Disattiva voce</string>
+    <string name="unmute">Attiva voce</string>
+    <string name="close">Chiudi</string>
+    <string name="clear">Cancella</string>
+    <string name="then">Poi</string>
+    <string name="turn_sharp_left">svolta bruscamente a sinistra</string>
+    <string name="turn_left">svolta a sinistra</string>
+    <string name="turn_slight_left">svolta leggermente a sinistra</string>
+    <string name="keep_left">tieni la sinistra</string>
+    <string name="keep_right">tieni la destra</string>
+    <string name="turn_slight_right">svolta leggermente a destra</string>
+    <string name="turn_right">svolta a destra</string>
+    <string name="turn_sharp_right">svolta bruscamente a destra</string>
+    <string name="roundabout">alla rotonda, prendi l\'uscita %1$d</string>
+    <string name="arrive">arriverai a destinazione</string>
+    <string name="onto">%1$s in %2$s</string>
+    <string name="and_then">%1$s, poi %2$s</string>
+    <string name="rerouting">Ricalcolo del percorso</string>
+    <string name="arrived">Sei arrivato a destinazione</string>
+    <string name="maps">Mappe</string>
+    <string name="maps_hint">Scarica una regione nel browser, poi importala qui.</string>
+    <string name="download">Scarica</string>
+    <string name="import_pack">Importa</string>
+    <string name="import_failed">Non è un pacchetto di mappe Kiesel</string>
+    <string name="delete">Elimina</string>
+    <plurals name="in_meters">
+        <item quantity="one">Tra %1$d metro, %2$s</item>
+        <item quantity="other">Tra %1$d metri, %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="one">Tra %1$s chilometro, %2$s</item>
+        <item quantity="other">Tra %1$s chilometri, %2$s</item>
+    </plurals>
+</resources>

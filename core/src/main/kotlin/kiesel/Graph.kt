@@ -1,11 +1,13 @@
 package kiesel
 
-import java.io.BufferedOutputStream
-import java.io.InputStream
-import java.io.ObjectInputStream
-import java.io.ObjectOutputStream
+import java.io.File
 import java.io.OutputStream
-import java.io.Serializable
+import java.nio.Buffer
+import java.nio.ByteBuffer
+import java.nio.FloatBuffer
+import java.nio.IntBuffer
+import java.nio.LongBuffer
+import java.nio.ShortBuffer
 import java.text.Normalizer
 import java.util.BitSet
 import kotlin.math.abs
@@ -46,16 +48,23 @@ class Place(val name: String, val location: LatLon, val rank: Int = 0)
  * Names packed into one string (one per line) so a country stays searchable.
  * [keys] is the same text folded by [searchKey], so offsets match.
  */
-class Places(
+class Places internal constructor(
     private val names: String,
     private val keys: String,
-    private val starts: IntArray,
-    private val ranks: ByteArray,
-    val latitudes: FloatArray,
-    val longitudes: FloatArray,
-) : Serializable {
-    private companion object {
-        const val serialVersionUID = 2L
+    private val starts: IntBuffer,
+    private val ranks: ByteBuffer,
+    private val latitudes: FloatBuffer,
+    private val longitudes: FloatBuffer,
+) {
+    val size get() = ranks.limit()
+
+    internal fun columns() =
+        arrayOf<Buffer>(text(names), text(keys), starts, ranks, latitudes, longitudes)
+
+    internal companion object {
+        fun read(columns: Columns) = with(columns) {
+            Places(text(), text(), ints(), bytes(), floats(), floats())
+        }
     }
 
     /** Whole-name prefixes first, then word starts; bigger places, then nearer ones. */
@@ -65,7 +74,7 @@ class Places(
         val hits = ArrayList<Int>()
         var position = keys.indexOf(needle)
         while (position >= 0 && hits.size < MAX_SEARCH_HITS) {
-            val index = starts.binarySearch(position).let { if (it >= 0) it else -it - 2 }
+            val index = partition(starts.limit()) { starts[it] <= position } - 1
             hits += index
             position = keys.indexOf(needle, starts[index + 1])
         }
@@ -114,38 +123,53 @@ class Snap(val edge: Int, val along: Double, val point: LatLon, val offset: Doub
  * Junction graph. Undirected edges carry simplified geometry (interior points only).
  * Arc = edge * 2 (from→to) or edge * 2 + 1 (to→from).
  */
-class Graph(
-    val latitudes: FloatArray,
-    val longitudes: FloatArray,
-    val from: IntArray,
-    val to: IntArray,
-    val lengths: FloatArray,
-    val roads: ByteArray,
-    val surfaces: ByteArray,
-    val scenery: ByteArray,
-    val crowding: ByteArray,
-    val oneway: BooleanArray,
-    val roundabout: BooleanArray,
-    val streets: IntArray,
+class Graph internal constructor(
+    val latitudes: FloatBuffer,
+    val longitudes: FloatBuffer,
+    val from: IntBuffer,
+    val to: IntBuffer,
+    val lengths: FloatBuffer,
+    val roads: ByteBuffer,
+    val surfaces: ByteBuffer,
+    val scenery: ByteBuffer,
+    val crowding: ByteBuffer,
+    val oneway: ByteBuffer,
+    val roundabout: ByteBuffer,
+    val streets: IntBuffer,
+    val rise: ShortBuffer,
+    val fall: ShortBuffer,
+    val shapeStarts: IntBuffer,
+    val shapeLatitudes: FloatBuffer,
+    val shapeLongitudes: FloatBuffer,
     val streetNames: List<String>,
-    val rise: ShortArray,
-    val fall: ShortArray,
-    val shapeStarts: IntArray,
-    val shapeLatitudes: FloatArray,
-    val shapeLongitudes: FloatArray,
     val places: Places,
-) : Serializable {
-    val arcCount get() = from.size * 2
+    index: Index? = null,
+    bearings: ShortBuffer? = null,
+) {
+    val nodeCount get() = latitudes.limit()
+
+    val edgeCount get() = from.limit()
+
+    val arcCount get() = edgeCount * 2
 
     @PublishedApi
-    internal val index = Index(this)
+    internal val index = index ?: Index.of(this)
 
     /** Start and end bearing per arc in whole degrees, computed once for routing. */
-    private val bearings = ShortArray(arcCount * 2) {
+    private val bearings = bearings ?: ShortBuffer.wrap(ShortArray(arcCount * 2) {
         stretchBearing(it / 2, atEnd = it % 2 == 1).roundToInt().toShort()
-    }
+    })
 
     fun point(node: Int) = LatLon(latitudes[node].toDouble(), longitudes[node].toDouble())
+
+    /** South-west and north-east corner around all nodes. */
+    fun bounds(): Pair<LatLon, LatLon> {
+        val nodes = 0 until nodeCount
+        fun lowest(values: FloatBuffer) = nodes.minOf { values[it].toDouble() }
+        fun highest(values: FloatBuffer) = nodes.maxOf { values[it].toDouble() }
+        val southWest = LatLon(lowest(latitudes), lowest(longitudes))
+        return southWest to LatLon(highest(latitudes), highest(longitudes))
+    }
 
     fun length(edge: Int) = lengths[edge].toDouble()
 
@@ -156,6 +180,10 @@ class Graph(
     fun scenery(edge: Int) = scenery[edge].toInt()
 
     fun crowding(edge: Int) = crowding[edge].toInt()
+
+    fun isOneway(edge: Int) = oneway[edge] > 0
+
+    fun isRoundabout(edge: Int) = roundabout[edge] > 0
 
     /** Meters climbed when walking the arc. */
     fun climb(arc: Int) =
@@ -212,14 +240,19 @@ class Graph(
         return null
     }
 
-    fun write(output: OutputStream) =
-        ObjectOutputStream(BufferedOutputStream(output)).use { it.writeObject(this) }
+    /** Writes the format [read] maps; leaves [output] open. */
+    fun write(output: OutputStream) = output.writeColumns(
+        latitudes, longitudes, from, to, lengths, roads, surfaces, scenery, crowding,
+        oneway, roundabout, streets, rise, fall, shapeStarts, shapeLatitudes,
+        shapeLongitudes, text(streetNames.joinToString("\n")), *places.columns(),
+        index.first, index.arcs, index.entries, bearings,
+    )
 
     private fun coordinate(
         arc: Int,
         position: Int,
-        nodes: FloatArray,
-        shape: FloatArray,
+        nodes: FloatBuffer,
+        shape: FloatBuffer,
     ): Double {
         val edge = arc / 2
         val last = pointCount(edge) - 1
@@ -283,11 +316,32 @@ class Graph(
     }
 
     companion object {
-        private const val serialVersionUID = 3L
-
-        fun read(input: InputStream) =
-            ObjectInputStream(input.buffered(READ_BUFFER_BYTES))
-                .use { it.readObject() as Graph }
+        /** Maps a [write] file: routing reads it in place, off the heap. */
+        fun read(file: File) = with(Columns(mapFile(file))) {
+            Graph(
+                latitudes = floats(),
+                longitudes = floats(),
+                from = ints(),
+                to = ints(),
+                lengths = floats(),
+                roads = bytes(),
+                surfaces = bytes(),
+                scenery = bytes(),
+                crowding = bytes(),
+                oneway = bytes(),
+                roundabout = bytes(),
+                streets = ints(),
+                rise = shorts(),
+                fall = shorts(),
+                shapeStarts = ints(),
+                shapeLatitudes = floats(),
+                shapeLongitudes = floats(),
+                streetNames = text().split('\n'),
+                places = Places.read(this),
+                index = Index(ints(), ints(), longs()),
+                bearings = shorts(),
+            )
+        }
     }
 }
 
@@ -306,27 +360,12 @@ internal fun project(point: LatLon, start: LatLon, end: LatLon): Projection {
     return Projection(share, hypot(east - share * endEast, north - share * endNorth))
 }
 
-/** Outgoing arcs per node and a cell grid of edges; built once, stored with the map. */
+/**
+ * Outgoing arcs per node and a cell grid of edges, as sorted (cell id, edge) entries;
+ * built once, stored with the map.
+ */
 @PublishedApi
-internal class Index(graph: Graph) : Serializable {
-    val first = IntArray(graph.latitudes.size + 1)
-    val arcs = IntArray(graph.arcCount)
-    private val entries: LongArray
-
-    init {
-        graph.from.forEach { first[it + 1]++ }
-        graph.to.forEach { first[it + 1]++ }
-        for (node in graph.latitudes.indices) first[node + 1] += first[node]
-        val cursor = first.copyOf()
-        for (arc in 0 until graph.arcCount) arcs[cursor[graph.arcStart(arc)]++] = arc
-        var count = 0
-        forEachEntry(graph) { count++ }
-        entries = LongArray(count)
-        count = 0
-        forEachEntry(graph) { entries[count++] = it }
-        entries.sort()
-    }
-
+internal class Index(val first: IntBuffer, val arcs: IntBuffer, val entries: LongBuffer) {
     /** Edges with a point inside the square of cells around [point]. */
     fun edgesWithin(point: LatLon, radius: Int): List<Int> {
         val row = cellIndex(point.latitude)
@@ -338,43 +377,63 @@ internal class Index(graph: Graph) : Serializable {
         }
     }
 
-    private fun lowerBound(key: Long): Int {
-        val position = entries.binarySearch(key)
-        return if (position >= 0) position else -position - 1
-    }
+    private fun lowerBound(key: Long) = partition(entries.limit()) { entries[it] < key }
 
-    /** One entry per cell each edge touches: (cell id, edge). */
-    private inline fun forEachEntry(graph: Graph, action: (Long) -> Unit) {
-        for (edge in 0 until graph.from.size) {
-            var last = -1L
-            for (i in 0 until graph.pointCount(edge) - 1) {
-                val steps = sampleSteps(graph, edge, i)
-                for (step in 0..steps) {
-                    val id = cellAlong(graph, edge, i, step.toDouble() / steps)
-                    if (id != last) action((id shl EDGE_BITS) or edge.toLong())
-                    last = id
-                }
+    companion object {
+        fun of(graph: Graph): Index {
+            val first = IntArray(graph.nodeCount + 1)
+            for (edge in 0 until graph.edgeCount) {
+                first[graph.from[edge] + 1]++
+                first[graph.to[edge] + 1]++
+            }
+            for (node in 0 until graph.nodeCount) first[node + 1] += first[node]
+            val cursor = first.copyOf()
+            val arcs = IntArray(graph.arcCount)
+            for (arc in 0 until graph.arcCount) arcs[cursor[graph.arcStart(arc)]++] = arc
+            var count = 0
+            forEachEntry(graph) { count++ }
+            val entries = LongArray(count)
+            count = 0
+            forEachEntry(graph) { entries[count++] = it }
+            entries.sort()
+            return Index(
+                IntBuffer.wrap(first), IntBuffer.wrap(arcs), LongBuffer.wrap(entries),
+            )
+        }
+    }
+}
+
+/** One entry per cell each edge touches: (cell id, edge). */
+private inline fun forEachEntry(graph: Graph, action: (Long) -> Unit) {
+    for (edge in 0 until graph.edgeCount) {
+        var last = -1L
+        for (i in 0 until graph.pointCount(edge) - 1) {
+            val steps = sampleSteps(graph, edge, i)
+            for (step in 0..steps) {
+                val id = cellAlong(graph, edge, i, step.toDouble() / steps)
+                if (id != last) action((id shl EDGE_BITS) or edge.toLong())
+                last = id
             }
         }
     }
+}
 
-    private fun cellAlong(graph: Graph, edge: Int, segment: Int, share: Double): Long {
-        val next = segment + 1
-        fun at(coordinate: (Int, Int) -> Double) =
-            lerp(coordinate(edge, segment), coordinate(edge, next), share)
-        val latitude = at(graph::latitudeAt)
-        val longitude = at(graph::longitudeAt)
-        return cellId(cellIndex(latitude), cellIndex(longitude))
-    }
+private fun cellAlong(graph: Graph, edge: Int, segment: Int, share: Double): Long {
+    val next = segment + 1
+    fun at(coordinate: (Int, Int) -> Double) =
+        lerp(coordinate(edge, segment), coordinate(edge, next), share)
+    val latitude = at(graph::latitudeAt)
+    val longitude = at(graph::longitudeAt)
+    return cellId(cellIndex(latitude), cellIndex(longitude))
+}
 
-    private fun sampleSteps(graph: Graph, edge: Int, segment: Int): Int {
-        val next = segment + 1
-        val latitudeSpan = graph.latitudeAt(edge, next) - graph.latitudeAt(edge, segment)
-        val longitudeSpan =
-            graph.longitudeAt(edge, next) - graph.longitudeAt(edge, segment)
-        val cells = maxOf(abs(latitudeSpan), abs(longitudeSpan)) * CELLS_PER_DEGREE * 2
-        return maxOf(1, ceil(cells).toInt())
-    }
+private fun sampleSteps(graph: Graph, edge: Int, segment: Int): Int {
+    val next = segment + 1
+    val latitudeSpan = graph.latitudeAt(edge, next) - graph.latitudeAt(edge, segment)
+    val longitudeSpan =
+        graph.longitudeAt(edge, next) - graph.longitudeAt(edge, segment)
+    val cells = maxOf(abs(latitudeSpan), abs(longitudeSpan)) * CELLS_PER_DEGREE * 2
+    return maxOf(1, ceil(cells).toInt())
 }
 
 /** Collects raw map data and compiles it into an immutable [Graph]. */
@@ -413,7 +472,8 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
         via: DoubleArray = DoubleArray(0),
         roundabout: Boolean = false,
     ) {
-        edges += Edge(from, to, road, surface, oneway, roundabout, street, via)
+        val name = street?.replace('\n', ' ')
+        edges += Edge(from, to, road, surface, oneway, roundabout, name, via)
     }
 
     fun addPlace(place: Place) {
@@ -428,10 +488,14 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
     fun build(): Graph {
         val kept = largestComponent()
         val remap = IntArray(nodes.size) { -1 }
-        kept.flatMap { listOf(it.from, it.to) }.distinct().sorted()
-            .forEachIndexed { position, node -> remap[node] = position }
+        kept.forEach {
+            remap[it.from] = 0
+            remap[it.to] = 0
+        }
+        var count = 0
+        for (node in remap.indices) if (remap[node] == 0) remap[node] = count++
         val points = nodes.filterIndexed { node, _ -> remap[node] >= 0 }
-        val grid = Grid(extent(kept))
+        val grid = Grid(extent(points))
         kept.forEach { grid.count(it.via) }
         points.forEach { grid.count(doubleArrayOf(it.latitude, it.longitude)) }
         areas.forEach { grid.fill(it.ring) }
@@ -443,38 +507,44 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
         compiled.forEachIndexed { i, edge ->
             shapeStarts[i + 1] = shapeStarts[i] + edge.shape.size / 2
         }
-        val shape = compiled.flatMap { it.shape.asList() }.toDoubleArray()
+        val shape = DoubleArray(shapeStarts.last() * 2)
+        for (i in compiled.indices) compiled[i].shape.copyInto(shape, shapeStarts[i] * 2)
+        fun floats(size: Int, value: (Int) -> Double) =
+            FloatBuffer.wrap(FloatArray(size) { value(it).toFloat() })
+        fun bytes(value: (Int) -> Int) =
+            ByteBuffer.wrap(ByteArray(kept.size) { value(it).toByte() })
+        fun shorts(value: (Int) -> Double) =
+            ShortBuffer.wrap(ShortArray(kept.size) { decimeters(value(it)) })
+        fun ints(value: (Int) -> Int) = IntBuffer.wrap(IntArray(kept.size, value))
         return Graph(
-            latitudes = FloatArray(points.size) { points[it].latitude.toFloat() },
-            longitudes = FloatArray(points.size) { points[it].longitude.toFloat() },
-            from = IntArray(kept.size) { remap[kept[it].from] },
-            to = IntArray(kept.size) { remap[kept[it].to] },
-            lengths = FloatArray(kept.size) { compiled[it].length.toFloat() },
-            roads = ByteArray(kept.size) { kept[it].road.ordinal.toByte() },
-            surfaces = ByteArray(kept.size) { kept[it].surface.toByte() },
-            scenery = ByteArray(kept.size) { compiled[it].scenery.toByte() },
-            crowding = ByteArray(kept.size) { compiled[it].crowding.toByte() },
-            oneway = BooleanArray(kept.size) { kept[it].oneway },
-            roundabout = BooleanArray(kept.size) { kept[it].roundabout },
-            streets = IntArray(kept.size) { streetIds[kept[it].street] ?: -1 },
+            latitudes = floats(points.size) { points[it].latitude },
+            longitudes = floats(points.size) { points[it].longitude },
+            from = ints { remap[kept[it].from] },
+            to = ints { remap[kept[it].to] },
+            lengths = floats(kept.size) { compiled[it].length },
+            roads = bytes { kept[it].road.ordinal },
+            surfaces = bytes { kept[it].surface },
+            scenery = bytes { compiled[it].scenery },
+            crowding = bytes { compiled[it].crowding },
+            oneway = bytes { if (kept[it].oneway) 1 else 0 },
+            roundabout = bytes { if (kept[it].roundabout) 1 else 0 },
+            streets = ints { streetIds[kept[it].street] ?: -1 },
+            rise = shorts { compiled[it].rise },
+            fall = shorts { compiled[it].fall },
+            shapeStarts = IntBuffer.wrap(shapeStarts),
+            shapeLatitudes = floats(shape.size / 2) { shape[it * 2] },
+            shapeLongitudes = floats(shape.size / 2) { shape[it * 2 + 1] },
             streetNames = streetNames,
-            rise = ShortArray(kept.size) { decimeters(compiled[it].rise) },
-            fall = ShortArray(kept.size) { decimeters(compiled[it].fall) },
-            shapeStarts = shapeStarts,
-            shapeLatitudes = FloatArray(shape.size / 2) { shape[it * 2].toFloat() },
-            shapeLongitudes = FloatArray(shape.size / 2) { shape[it * 2 + 1].toFloat() },
             places = compilePlaces(),
         )
     }
 
-    private fun extent(kept: List<Edge>): DoubleArray {
-        val ends = kept.flatMap { listOf(nodes[it.from], nodes[it.to]) }
-        val latitudes = ends.map { it.latitude }
-        val longitudes = ends.map { it.longitude }
-        return doubleArrayOf(
-            latitudes.min(), latitudes.max(), longitudes.min(), longitudes.max(),
-        )
-    }
+    private fun extent(points: List<LatLon>) = doubleArrayOf(
+        points.minOf { it.latitude },
+        points.maxOf { it.latitude },
+        points.minOf { it.longitude },
+        points.maxOf { it.longitude },
+    )
 
     private class Compiled(
         val shape: DoubleArray,
@@ -571,13 +641,15 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
             names.append(place.name.replace('\n', ' ')).append('\n')
         }
         starts[places.size] = names.length
+        fun floats(value: (Place) -> Double) =
+            FloatBuffer.wrap(FloatArray(places.size) { value(places[it]).toFloat() })
         return Places(
             names.toString(),
             searchKey(names.toString()),
-            starts,
-            ByteArray(places.size) { places[it].rank.toByte() },
-            FloatArray(places.size) { places[it].location.latitude.toFloat() },
-            FloatArray(places.size) { places[it].location.longitude.toFloat() },
+            IntBuffer.wrap(starts),
+            ByteBuffer.wrap(ByteArray(places.size) { places[it].rank.toByte() }),
+            floats { it.location.latitude },
+            floats { it.location.longitude },
         )
     }
 }
@@ -708,12 +780,22 @@ private fun pathLength(points: DoubleArray) = (0 until points.size / 2 - 1).sumO
 internal fun lerp(start: Double, end: Double, share: Double) =
     start + (end - start) * share
 
+/** First index in 0..[size] where [isBefore] is false; it must be true, then false. */
+internal inline fun partition(size: Int, isBefore: (Int) -> Boolean): Int {
+    var low = 0
+    var high = size
+    while (low < high) {
+        val middle = (low + high) ushr 1
+        if (isBefore(middle)) low = middle + 1 else high = middle
+    }
+    return low
+}
+
 private const val EARTH_RADIUS_METERS = 6_371_000.0
 private const val METERS_PER_DEGREE = 111_320.0
 private const val CELLS_PER_DEGREE = 1000
 private const val ROAD_TOLERANCE_METERS = 6.0
 private const val BEARING_METERS = 15.0
-private const val READ_BUFFER_BYTES = 1 shl 20
 private const val DECIMETERS = 10.0
 private const val SAMPLE_METERS = 30.0
 private const val CLIMB_THRESHOLD_METERS = 5.0

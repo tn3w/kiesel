@@ -1,5 +1,6 @@
 package kiesel
 
+import java.io.File
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -68,8 +69,8 @@ class RouterTest {
         repeat(4) {
             val graph = gridGraph(6, random).build()
             repeat(10) {
-                val start = random.nextInt(graph.latitudes.size)
-                val goal = random.nextInt(graph.latitudes.size)
+                val start = random.nextInt(graph.nodeCount)
+                val goal = random.nextInt(graph.nodeCount)
                 for (mode in Mode.entries) for (profile in Profile.entries) {
                     val expected = graph.referenceCost(start, goal, mode, profile)
                     val actual = graph.route(start, goal, mode, profile)?.cost
@@ -86,9 +87,9 @@ class RouterTest {
         for (profile in listOf(Profile.Scenic, Profile.Quiet, Profile.Easiest)) {
             val graph = diamond()
             when (profile) {
-                Profile.Scenic -> graph.scenery.fill(2.toByte(), 2, 4)
-                Profile.Quiet -> graph.crowding.fill(3.toByte(), 0, 2)
-                else -> graph.surfaces.fill(ROUGH.toByte(), 0, 2)
+                Profile.Scenic -> graph.scenery.put(2, 2).put(3, 2)
+                Profile.Quiet -> graph.crowding.put(0, 3).put(1, 3)
+                else -> graph.surfaces.put(0, ROUGH.toByte()).put(1, ROUGH.toByte())
             }
             val fastest = diamond().route(0, 1, Mode.Walk, Profile.Fastest)!!
             val preferred = graph.route(0, 1, Mode.Walk, profile)!!
@@ -143,15 +144,16 @@ class RouterTest {
         builder.addEdge(island, builder.addNode(1.0, 1.001), Road.Footway)
         val graph = builder.build()
 
-        assertEquals(9, graph.latitudes.size)
+        assertEquals(9, graph.nodeCount)
         assertEquals(0, graph.snap(LatLon(-0.0001, -0.0001))!!.edge)
     }
 
     @Test
     fun `graph survives serialization`() {
         val graph = gridGraph(4, Random(3)).build()
-        val bytes = java.io.ByteArrayOutputStream().also { graph.write(it) }.toByteArray()
-        val loaded = Graph.read(bytes.inputStream())
+        val file = File.createTempFile("graph", null).apply { deleteOnExit() }
+        file.outputStream().use(graph::write)
+        val loaded = Graph.read(file)
 
         assertEquals(
             graph.route(0, 15, Mode.Walk, Profile.Scenic)?.cost,
@@ -187,14 +189,14 @@ class RouterTest {
         val end = builder.addNode(0.0, 4 * STEP)
         val straight = DoubleArray(6) { if (it % 2 == 0) 0.0 else (it / 2 + 1) * STEP }
         builder.addEdge(start, end, Road.Calm, via = straight)
-        assertEquals(0, builder.build().shapeLatitudes.size)
+        assertEquals(0, builder.build().shapeLatitudes.limit())
 
         val bent = GraphBuilder()
         val a = bent.addNode(0.0, 0.0)
         val b = bent.addNode(0.0, 2 * STEP)
         bent.addEdge(a, b, Road.Calm, via = doubleArrayOf(STEP, STEP))
         val graph = bent.build()
-        assertEquals(1, graph.shapeLatitudes.size)
+        assertEquals(1, graph.shapeLatitudes.limit())
         assertTrue(graph.lengths[0] > 2 * STEP * 111_195 * 1.2)
     }
 

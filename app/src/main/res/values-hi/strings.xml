@@ -1,0 +1,55 @@
+<resources>
+    <string name="search_hint">जगहें खोजें</string>
+    <string name="loading_places">जगहें लोड हो रही हैं…</string>
+    <string name="map_error">मैप लोड नहीं हो सका</string>
+    <string name="hold_to_start">शुरुआती जगह चुनने के लिए मैप को दबाकर रखें</string>
+    <string name="dropped_pin">चिह्नित जगह</string>
+    <string name="walk">पैदल</string>
+    <string name="bike">साइकिल</string>
+    <string name="fastest">सबसे तेज़</string>
+    <string name="fastest_detail">सबसे कम समय</string>
+    <string name="easiest">सबसे आसान</string>
+    <string name="easiest_detail">समतल, चिकना, कम मोड़</string>
+    <string name="scenic">सुंदर</string>
+    <string name="scenic_detail">पार्क, जंगल और पानी</string>
+    <string name="quiet">शांत</string>
+    <string name="quiet_detail">भीड़ वाली सड़कों से दूर</string>
+    <string name="no_route">कोई रास्ता नहीं</string>
+    <string name="go">चलें</string>
+    <string name="end">समाप्त करें</string>
+    <string name="arrival">आगमन</string>
+    <string name="navigating">नेविगेशन चालू है</string>
+    <string name="locate">मेरी जगह दिखाएँ</string>
+    <string name="recenter">बीच में लाएँ</string>
+    <string name="mute">आवाज़ बंद करें</string>
+    <string name="unmute">आवाज़ चालू करें</string>
+    <string name="close">बंद करें</string>
+    <string name="clear">साफ़ करें</string>
+    <string name="then">फिर</string>
+    <string name="turn_sharp_left">तेज़ी से बाएँ मुड़ें</string>
+    <string name="turn_left">बाएँ मुड़ें</string>
+    <string name="turn_slight_left">हल्का बाएँ मुड़ें</string>
+    <string name="keep_left">बाईं ओर रहें</string>
+    <string name="keep_right">दाईं ओर रहें</string>
+    <string name="turn_slight_right">हल्का दाएँ मुड़ें</string>
+    <string name="turn_right">दाएँ मुड़ें</string>
+    <string name="turn_sharp_right">तेज़ी से दाएँ मुड़ें</string>
+    <string name="roundabout">गोल चक्कर पर %1$d नंबर निकास लें</string>
+    <string name="arrive">आप अपनी मंज़िल पर पहुँच जाएँगे</string>
+    <string name="onto">%2$s पर %1$s</string>
+    <string name="and_then">%1$s, फिर %2$s</string>
+    <string name="rerouting">रास्ता फिर से तय किया जा रहा है</string>
+    <string name="arrived">आप अपनी मंज़िल पर पहुँच गए हैं</string>
+    <string name="maps">मैप</string>
+    <string name="maps_hint">ब्राउज़र में कोई क्षेत्र डाउनलोड करें, फिर उसे यहाँ इम्पोर्ट करें।</string>
+    <string name="download">डाउनलोड करें</string>
+    <string name="import_pack">इम्पोर्ट करें</string>
+    <string name="import_failed">यह Kiesel मैप पैक नहीं है</string>
+    <string name="delete">हटाएँ</string>
+    <plurals name="in_meters">
+        <item quantity="other">%1$d मीटर बाद %2$s</item>
+    </plurals>
+    <plurals name="in_kilometers">
+        <item quantity="other">%1$s किलोमीटर बाद %2$s</item>
+    </plurals>
+</resources>
