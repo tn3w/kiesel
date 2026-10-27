@@ -4,9 +4,10 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sqrt
 
-enum class Mode(val maxSpeed: Double, val climbSeconds: Double) {
-    Walk(1.4, 6.0),
-    Bike(5.0, 10.0);
+/** [farWeight] scales [Profile.farWeight]: bikes rarely keep top speed for long. */
+enum class Mode(val maxSpeed: Double, val climbSeconds: Double, val farWeight: Double) {
+    Walk(1.4, 6.0, 1.0),
+    Bike(5.0, 10.0, 1.25);
 
     /** Meters per second; 0 = impassable. */
     fun speed(road: Road, surface: Int) = when {
@@ -18,12 +19,16 @@ enum class Mode(val maxSpeed: Double, val climbSeconds: Double) {
     }
 }
 
-/** Penalties are always ≥ 1, so straight-line time stays an admissible estimate. */
-enum class Profile(val turnSeconds: Double) {
-    Fastest(2.0),
-    Easiest(45.0),
-    Scenic(5.0),
-    Quiet(5.0);
+/**
+ * Penalties are always ≥ 1, so straight-line time stays an admissible estimate.
+ * Beyond [EXACT_METERS] it is multiplied by [farWeight]: routes may then cost that much
+ * more than the best one (about 1 % in practice) but search a far smaller area.
+ */
+enum class Profile(val turnSeconds: Double, val farWeight: Double) {
+    Fastest(2.0, 1.3),
+    Easiest(45.0, 1.6),
+    Scenic(5.0, 1.6),
+    Quiet(5.0, 1.6);
 
     fun penalty(graph: Graph, edge: Int, climb: Double): Double {
         val traffic = graph.road(edge).traffic
@@ -74,12 +79,14 @@ private class Finish(val cost: Double, val via: Int, val arc: Int)
 /**
  * A* over directed arcs, so turn costs are exact. Start and goal may lie inside edges:
  * the first and last arc are then entered or left part-way.
- * One router reuses its search arrays, so a country-sized map needs them only once.
+ * Search state lives in pages allocated where the search goes, and arcs near each
+ * other on the map have nearby numbers, so a country-sized map costs little heap.
  */
 class Router(private val graph: Graph) {
-    private val cost = DoubleArray(graph.arcCount)
-    private val previous = IntArray(graph.arcCount)
-    private val settled = BooleanArray(graph.arcCount)
+    private val eastScale by lazy {
+        val (southWest, northEast) = graph.bounds()
+        cos(Math.toRadians(maxOf(abs(southWest.latitude), abs(northEast.latitude))))
+    }
 
     /** Gives up with null as soon as [wanted] turns false. */
     fun route(
@@ -94,7 +101,6 @@ class Router(private val graph: Graph) {
         return route(start, goal, mode, profile, wanted)
     }
 
-    @Synchronized
     internal fun route(
         start: Snap,
         goal: Snap,
@@ -106,17 +112,16 @@ class Router(private val graph: Graph) {
             val goalNode = if (isInside(goal)) NONE else endpoint(goal)
             val sameNode = !isInside(start) && goalNode == endpoint(start)
             if (goalNode != NONE && sameNode) return null
-            cost.fill(Double.POSITIVE_INFINITY)
-            previous.fill(NONE)
-            settled.fill(false)
+            val search = Search(arcCount)
             val queue = ArcQueue()
-            val toGoal = Estimate(goal.point, mode)
+            val far = start.point.distanceTo(goal.point) > EXACT_METERS
+            val weight = if (far) profile.farWeight * mode.farWeight else 1.0
+            val toGoal = Estimate(goal.point, mode, eastScale, weight)
             var finish = Finish(Double.POSITIVE_INFINITY, NONE, NONE)
 
             fun relax(arc: Int, via: Int, total: Double) {
-                if (total >= cost[arc]) return
-                cost[arc] = total
-                previous[arc] = via
+                if (total >= search.cost(arc)) return
+                search.update(arc, total, via)
                 val end = arcEnd(arc)
                 val remaining = toGoal.seconds(latitudes[end], longitudes[end])
                 queue.add(arc, total + remaining)
@@ -155,18 +160,20 @@ class Router(private val graph: Graph) {
             while (queue.size > 0) {
                 val arc = queue.poll()
                 if (arc == arcCount) {
-                    val head = if (finish.via == NONE) emptyList() else arcsTo(finish.via)
+                    val via = finish.via
+                    val head = if (via == NONE) emptyList() else search.arcsTo(via)
                     return toRoute(head + finish.arc, start, goal, mode, finish.cost)
                 }
-                if (settled[arc]) continue
-                settled[arc] = true
+                if (!search.settle(arc)) continue
                 if (arc % CHECK_INTERVAL == 0 && !wanted()) return null
+                if (search.pages > MAX_PAGES) return null
                 if (arcEnd(arc) == goalNode) {
-                    return toRoute(arcsTo(arc), start, goal, mode, cost[arc])
+                    val chain = search.arcsTo(arc)
+                    return toRoute(chain, start, goal, mode, search.cost(arc))
                 }
                 forEachOutgoing(arcEnd(arc)) { next ->
                     if (next != (arc xor 1)) {
-                        val base = cost[arc] + turnCost(arc, next, profile)
+                        val base = search.cost(arc) + turnCost(arc, next, profile)
                         relax(next, arc, base + arcCost(next, mode, profile))
                         enterGoal(next, arc, base)
                     }
@@ -174,19 +181,63 @@ class Router(private val graph: Graph) {
             }
             return null
         }
+}
 
-    private fun arcsTo(last: Int) =
-        generateSequence(last) { previous[it].takeIf { arc -> arc != NONE } }
-            .toList().reversed()
+/** Cost, previous arc and settled flag per arc, in pages created on first touch. */
+private class Search(arcCount: Int) {
+    private class Page {
+        val cost = FloatArray(PAGE_SIZE) { Float.POSITIVE_INFINITY }
+        val previous = IntArray(PAGE_SIZE)
+        val settled = BooleanArray(PAGE_SIZE)
+    }
+
+    private val table = arrayOfNulls<Page>(arcCount / PAGE_SIZE + 1)
+    var pages = 0
+        private set
+
+    fun cost(arc: Int): Double {
+        val page = table[arc / PAGE_SIZE] ?: return Double.POSITIVE_INFINITY
+        return page.cost[arc % PAGE_SIZE].toDouble()
+    }
+
+    fun update(arc: Int, cost: Double, previous: Int) {
+        val page = page(arc)
+        page.cost[arc % PAGE_SIZE] = cost.toFloat()
+        page.previous[arc % PAGE_SIZE] = previous
+    }
+
+    /** False if [arc] was settled before. */
+    fun settle(arc: Int): Boolean {
+        val settled = page(arc).settled
+        if (settled[arc % PAGE_SIZE]) return false
+        settled[arc % PAGE_SIZE] = true
+        return true
+    }
+
+    fun arcsTo(last: Int) =
+        generateSequence(last) { arc ->
+            page(arc).previous[arc % PAGE_SIZE].takeIf { it != NONE }
+        }.toList().reversed()
+
+    private fun page(arc: Int) = table[arc / PAGE_SIZE]
+        ?: Page().also {
+            table[arc / PAGE_SIZE] = it
+            pages++
+        }
 }
 
 /**
- * Lower bound on travel time to [goal]: flat-earth distance, shrunk a little so it never
- * exceeds the true distance within a country, at top speed.
+ * Lower bound on travel time to [goal] at top speed: flat-earth distance, shrunk a
+ * little, with east-west degrees as short as at the map's latitude farthest from the
+ * equator, so it never exceeds the true distance.
  */
-private class Estimate(private val goal: LatLon, mode: Mode) {
-    private val eastScale = cos(Math.toRadians(abs(goal.latitude) + LATITUDE_SPREAD))
-    private val perDegree = SAFE_METERS_PER_DEGREE / mode.maxSpeed
+private class Estimate(
+    private val goal: LatLon,
+    mode: Mode,
+    private val eastScale: Double,
+    weight: Double,
+) {
+    private val perDegree = SAFE_METERS_PER_DEGREE / mode.maxSpeed * weight
 
     fun seconds(latitude: Float, longitude: Float): Double {
         val north = latitude - goal.latitude
@@ -332,5 +383,10 @@ private const val NONE = -1
 private const val INITIAL_QUEUE = 1024
 private const val CHECK_INTERVAL = 1024
 private const val SAFE_METERS_PER_DEGREE = 110_000.0
-private const val LATITUDE_SPREAD = 3.0
+private const val PAGE_SIZE = 1024
+private const val PAGE_BYTES = PAGE_SIZE * 9
+private const val EXACT_METERS = 20_000.0
+
+/** Search state may take half the heap: Berlin to Munich needs about 250 MB. */
+private val MAX_PAGES = Runtime.getRuntime().maxMemory() / 2 / PAGE_BYTES
 private const val EDGE_EPSILON = 0.5

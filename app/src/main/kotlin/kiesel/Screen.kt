@@ -445,8 +445,8 @@ private fun ElevationChart(route: Route, heights: Heights) {
 @Composable
 private fun MapsPanel(model: AppModel) {
     val links = LocalUriHandler.current
-    val choose = ActivityResultContracts.OpenDocument()
-    val picker = rememberLauncherForActivityResult(choose) { it?.let(model::install) }
+    val choose = ActivityResultContracts.OpenMultipleDocuments()
+    val picker = rememberLauncherForActivityResult(choose, model::install)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -462,8 +462,12 @@ private fun MapsPanel(model: AppModel) {
         }
         model.regions.forEach { RegionRow(model, it) }
         when {
-            model.importing -> LinearProgressIndicator(Modifier.fillMaxWidth())
+            model.importing -> LinearProgressIndicator(
+                progress = { model.importProgress },
+                modifier = Modifier.fillMaxWidth(),
+            )
             model.importFailed -> Hint(stringResource(R.string.import_failed))
+            model.partsMissing -> Hint(stringResource(R.string.import_parts))
             model.regions.isEmpty() -> Hint(stringResource(R.string.maps_hint))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

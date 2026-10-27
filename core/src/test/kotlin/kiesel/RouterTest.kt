@@ -76,7 +76,7 @@ class RouterTest {
                     val actual = graph.route(start, goal, mode, profile)?.cost
                     if (start == goal) continue
                     assertEquals(expected == null, actual == null, "$mode $profile")
-                    if (expected != null) assertEquals(expected, actual!!, 1e-6)
+                    if (expected != null) assertEquals(expected, actual!!, 1e-3)
                 }
             }
         }

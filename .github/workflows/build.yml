@@ -6,13 +6,7 @@ on:
       regions:
         description: Geofabrik regions, comma-separated
         default: >-
-          europe/germany/baden-wuerttemberg,europe/germany/bayern,europe/germany/berlin,
-          europe/germany/brandenburg,europe/germany/bremen,europe/germany/hamburg,
-          europe/germany/hessen,europe/germany/mecklenburg-vorpommern,
-          europe/germany/niedersachsen,europe/germany/nordrhein-westfalen,
-          europe/germany/rheinland-pfalz,europe/germany/saarland,europe/germany/sachsen,
-          europe/germany/sachsen-anhalt,europe/germany/schleswig-holstein,
-          europe/germany/thueringen,europe/austria,europe/switzerland,europe/liechtenstein,
+          europe/germany,europe/austria,europe/switzerland,europe/liechtenstein,
           europe/netherlands,europe/belgium,europe/luxembourg,europe/denmark
 
 permissions:
@@ -39,13 +33,15 @@ jobs:
   packs:
     needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       max-parallel: 8
       matrix:
         region: ${{ fromJSON(needs.plan.outputs.regions) }}
     steps:
+      - name: Free disk space for country extracts
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -55,8 +51,18 @@ jobs:
         with:
           gradle-version: 9.8.2
       - name: Build ${{ matrix.region }}
-        run: gradle :core:buildPacks -Pregions=${{ matrix.region }}
-      - name: Upload to the "maps" release
+        env:
+          REGION: ${{ matrix.region }}
+        run: gradle :core:buildPacks -Pregions="$REGION"
+      - name: Upload to the "maps" release, replacing parts from earlier builds
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload maps build/packs/*.zip --clobber
+          REGION: ${{ matrix.region }}
+        run: |
+          gh release upload maps build/packs/*.zip --clobber
+          name=$(basename "$REGION")
+          gh release view maps --json assets --jq '.assets[].name' \
+            | grep -E "^kiesel-$name(-[0-9]+of[0-9]+)?\.zip$" \
+            | while read -r asset; do
+                [ -f "build/packs/$asset" ] || gh release delete-asset maps "$asset" --yes
+              done

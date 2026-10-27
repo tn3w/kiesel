@@ -45,6 +45,7 @@
     <string name="download">ডাউনলোড</string>
     <string name="import_pack">ইমপোর্ট</string>
     <string name="import_failed">এটি Kiesel ম্যাপ প্যাক নয়</string>
+    <string name="import_parts">অংশ ইমপোর্ট হয়েছে। এই অঞ্চলের বাকি অংশগুলোও ইমপোর্ট করুন।</string>
     <string name="delete">মুছুন</string>
     <plurals name="in_meters">
         <item quantity="other">%1$d মিটার পরে %2$s</item>

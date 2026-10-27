@@ -45,6 +45,7 @@
     <string name="download">下载</string>
     <string name="import_pack">导入</string>
     <string name="import_failed">不是 Kiesel 地图包</string>
+    <string name="import_parts">已导入一部分。请同时导入该地区的其他部分。</string>
     <string name="delete">删除</string>
     <plurals name="in_meters">
         <item quantity="other">%1$d米后%2$s</item>

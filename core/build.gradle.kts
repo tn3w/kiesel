@@ -26,7 +26,7 @@ tasks.test {
 tasks.register<JavaExec>("buildPacks") {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass = "kiesel.BuilderKt"
-    maxHeapSize = "6g"
+    maxHeapSize = "12g"
     workingDir = rootDir
     val regions = findProperty("regions")?.toString() ?: "europe/liechtenstein"
     args(listOf("build/maps", "build/packs") + regions.split(","))

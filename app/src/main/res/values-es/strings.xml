@@ -45,6 +45,7 @@
     <string name="download">Descargar</string>
     <string name="import_pack">Importar</string>
     <string name="import_failed">No es un paquete de mapas de Kiesel</string>
+    <string name="import_parts">Parte importada. Importa también las demás partes de esta región.</string>
     <string name="delete">Eliminar</string>
     <plurals name="in_meters">
         <item quantity="one">En %1$d metro, %2$s</item>

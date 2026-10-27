@@ -3,12 +3,15 @@ package kiesel
 import java.io.File
 import java.io.OutputStream
 import java.net.URI
-import java.nio.file.Files
+import java.nio.channels.Channels
+import java.nio.channels.FileChannel
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Builds one compressed pack per region: map tiles, routing and search graph, heights.
+ * Builds one compressed pack per region: map tiles, routing and search graph, heights;
+ * split into parts when it is too big for one download.
  * Usage: <work directory> <output directory> <Geofabrik region>...
  * Example: build/maps build/packs europe/switzerland europe/liechtenstein
  */
@@ -25,17 +28,71 @@ private fun buildPack(region: String, work: File, output: File) {
     val tiles = buildTiles(extract, work, File(work, "$name.pmtiles"))
     val elevation = Elevation(File(work, "elevation"))
     val graph = importExtract({ extract.inputStream() }, elevation::at)
+    val folder = File(work, name).apply { mkdirs() }
     val heights = Heights.of(graph, elevation::at)
-    val pack = File(output, "kiesel-$name.zip")
-    ZipOutputStream(pack.outputStream().buffered()).use { zip ->
-        zip.putEntry("$name/graph", graph::write)
-        zip.putEntry("$name/heights", heights::write)
-        zip.putEntry("$name/tiles.pmtiles") { Files.copy(tiles.toPath(), it) }
+    val files = mapOf(
+        "graph" to File(folder, "graph").write(graph::write),
+        "heights" to File(folder, "heights").write(heights::write),
+        "tiles.pmtiles" to tiles,
+    )
+    for (part in zipParts(name, files, output)) {
+        println("$region → ${part.path} (${part.length() / 1_000_000} MB)")
     }
-    println("$region → ${pack.path} (${pack.length() / 1_000_000} MB)")
 }
 
+private fun File.write(content: (OutputStream) -> Unit) =
+    apply { outputStream().buffered().use(content) }
+
+private class Piece(val entry: String, val file: File, val offset: Long, val size: Long)
+
+/**
+ * Zips [files] into kiesel-<name>.zip, or kiesel-<name>-<i>of<n>.zip beyond GitHub's
+ * 2 GiB asset limit; a file too big for one zip goes in pieces "<file>.<i>of<n>".
+ */
+private fun zipParts(name: String, files: Map<String, File>, output: File): List<File> {
+    val pieces = files.flatMap { (entry, file) ->
+        val count = ((file.length() + PIECE_BYTES - 1) / PIECE_BYTES).coerceAtLeast(1)
+        (0 until count).map {
+            val suffix = if (count == 1L) "" else ".${it + 1}of$count"
+            val offset = it * PIECE_BYTES
+            val size = minOf(PIECE_BYTES, file.length() - offset)
+            Piece("$name/$entry$suffix", file, offset, size)
+        }
+    }
+    val parts = ArrayList<MutableList<Piece>>()
+    for (piece in pieces.sortedByDescending { it.size }) {
+        val part = parts.firstOrNull { it.sumOf(Piece::size) + piece.size <= PIECE_BYTES }
+            ?: ArrayList<Piece>().also(parts::add)
+        part += piece
+    }
+    val previous = Regex("kiesel-$name(-\\d+of\\d+)?\\.zip")
+    output.listFiles { file -> previous.matches(file.name) }?.forEach { it.delete() }
+    return parts.mapIndexed { index, part ->
+        val suffix = if (parts.size == 1) "" else "-${index + 1}of${parts.size}"
+        File(output, "kiesel-$name$suffix.zip").also { writeZip(it, part) }
+    }
+}
+
+/** Entries are stored, not deflated, so the app copies them at disk speed. */
+private fun writeZip(zip: File, pieces: List<Piece>) =
+    ZipOutputStream(zip.outputStream().buffered(1 shl 20)).use { output ->
+        val target = Channels.newChannel(output)
+        for (piece in pieces) {
+            val bytes = FileChannel.open(piece.file.toPath()).use {
+                it.map(FileChannel.MapMode.READ_ONLY, piece.offset, piece.size)
+            }
+            output.putNextEntry(ZipEntry(piece.entry).apply {
+                method = ZipEntry.STORED
+                size = piece.size
+                crc = CRC32().apply { update(bytes.duplicate()) }.value
+            })
+            while (bytes.hasRemaining()) target.write(bytes)
+            output.closeEntry()
+        }
+    }
+
 private fun buildTiles(extract: File, work: File, tiles: File): File {
+    if (tiles.lastModified() > extract.lastModified()) return tiles
     val planetiler = download(PLANETILER, File(work, "planetiler.jar"))
     val data = File(work, "planetiler").path
     val command = listOf(
@@ -67,11 +124,8 @@ private fun download(url: String, file: File): File {
     return file
 }
 
-private fun ZipOutputStream.putEntry(name: String, write: (OutputStream) -> Unit) {
-    putNextEntry(ZipEntry(name))
-    write(this)
-    closeEntry()
-}
+/** Size of each piece of a split file but the last; the app writes pieces in place. */
+const val PIECE_BYTES = 1_900_000_000L
 
 private const val GEOFABRIK = "https://download.geofabrik.de"
 private const val PLANETILER =

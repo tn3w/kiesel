@@ -12,21 +12,23 @@ import java.nio.ShortBuffer
 import java.nio.channels.Channels
 import java.nio.channels.FileChannel
 
-/** Maps [file] read-only: its data stays in the page cache instead of the heap. */
-fun mapFile(file: File): ByteBuffer = FileChannel.open(file.toPath()).use {
-    it.map(FileChannel.MapMode.READ_ONLY, 0, it.size())
-}
+/**
+ * Maps the arrays written by [writeColumns] read-only, one by one and in the same order:
+ * their data stays in the page cache instead of the heap, and files may exceed 2 GB.
+ */
+internal fun <T> readColumns(file: File, read: Columns.() -> T): T =
+    FileChannel.open(file.toPath()).use { Columns(it).read() }
 
-/** Views on the arrays written by [writeColumns], in the same order, without copying. */
-internal class Columns(buffer: ByteBuffer) {
-    private val buffer = buffer.order(ORDER)
+internal class Columns(private val channel: FileChannel) {
+    private var position = 0L
 
     fun bytes(): ByteBuffer {
-        val size = buffer.getLong().toInt()
-        val column = buffer.slice().order(ORDER)
-        column.limit(size)
-        buffer.position(buffer.position() + aligned(size))
-        return column
+        val header = allocate(HEADER_BYTES)
+        channel.read(header, position)
+        val size = header.getLong(0)
+        val start = position + HEADER_BYTES
+        position = start + aligned(size)
+        return channel.map(FileChannel.MapMode.READ_ONLY, start, size).order(ORDER)
     }
 
     fun shorts(): ShortBuffer = bytes().asShortBuffer()
@@ -37,10 +39,62 @@ internal class Columns(buffer: ByteBuffer) {
 
     fun floats(): FloatBuffer = bytes().asFloatBuffer()
 
-    fun text() = Charsets.UTF_8.decode(bytes()).toString()
+    fun texts() = Texts(bytes(), ints())
 }
 
-internal fun text(value: String): ByteBuffer = Charsets.UTF_8.encode(value)
+/** Strings stored back to back as UTF-8; [starts] has one more entry than strings. */
+class Texts internal constructor(
+    private val bytes: ByteBuffer,
+    private val starts: IntBuffer,
+) {
+    val size get() = starts.limit() - 1
+
+    operator fun get(index: Int): String {
+        val view = bytes.duplicate()
+        view.limit(starts[index + 1])
+        view.position(starts[index])
+        return Charsets.UTF_8.decode(view).toString()
+    }
+
+    /** Indices of strings containing [needle], at most [limit]. */
+    fun containing(needle: ByteArray, limit: Int): List<Int> {
+        val found = ArrayList<Int>()
+        var position = find(needle, 0)
+        while (position >= 0 && found.size < limit) {
+            val index = partition(starts.limit()) { starts[it] <= position } - 1
+            val end = starts[index + 1]
+            val inside = position + needle.size <= end
+            if (inside) found += index
+            position = find(needle, if (inside) end else position + 1)
+        }
+        return found
+    }
+
+    private fun find(needle: ByteArray, from: Int): Int {
+        for (position in from..bytes.limit() - needle.size) {
+            if (matches(needle, position)) return position
+        }
+        return -1
+    }
+
+    private fun matches(needle: ByteArray, position: Int): Boolean {
+        for (i in needle.indices) if (bytes[position + i] != needle[i]) return false
+        return true
+    }
+
+    internal fun columns() = arrayOf<Buffer>(bytes, starts)
+
+    internal companion object {
+        fun of(values: List<String>): Texts {
+            val encoded = values.map { it.encodeToByteArray() }
+            val starts = IntArray(values.size + 1)
+            encoded.forEachIndexed { i, bytes -> starts[i + 1] = starts[i] + bytes.size }
+            val bytes = ByteBuffer.allocate(starts.last())
+            encoded.forEach(bytes::put)
+            return Texts(bytes.flip() as ByteBuffer, IntBuffer.wrap(starts))
+        }
+    }
+}
 
 /** Each column as its byte count and bytes, padded so mapped views stay aligned. */
 internal fun OutputStream.writeColumns(vararg columns: Buffer) {
@@ -50,7 +104,7 @@ internal fun OutputStream.writeColumns(vararg columns: Buffer) {
         val size = bytes.remaining()
         channel.write(allocate(HEADER_BYTES).putLong(0, size.toLong()))
         channel.write(bytes)
-        channel.write(allocate(aligned(size) - size))
+        channel.write(allocate(aligned(size.toLong()).toInt() - size))
     }
 }
 
@@ -74,7 +128,7 @@ private fun bytesOf(column: Buffer): ByteBuffer {
 
 private fun allocate(size: Int) = ByteBuffer.allocate(size).order(ORDER)
 
-private fun aligned(size: Int) = (size + HEADER_BYTES - 1) / HEADER_BYTES * HEADER_BYTES
+private fun aligned(size: Long) = (size + HEADER_BYTES - 1) / HEADER_BYTES * HEADER_BYTES
 
 private val ORDER = ByteOrder.LITTLE_ENDIAN
 private const val HEADER_BYTES = 8

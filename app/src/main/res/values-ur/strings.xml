@@ -45,6 +45,7 @@
     <string name="download">ڈاؤن لوڈ</string>
     <string name="import_pack">درآمد</string>
     <string name="import_failed">یہ Kiesel نقشہ پیک نہیں ہے</string>
+    <string name="import_parts">حصہ درآمد ہو گیا۔ اس علاقے کے باقی حصے بھی درآمد کریں۔</string>
     <string name="delete">حذف کریں</string>
     <plurals name="in_meters">
         <item quantity="other">%1$d میٹر بعد %2$s</item>

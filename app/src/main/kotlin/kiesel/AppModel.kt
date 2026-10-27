@@ -12,17 +12,26 @@ import android.location.LocationRequest
 import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import app.kiesel.R
 import java.io.File
+import java.io.FilterInputStream
+import java.io.InputStream
+import java.io.RandomAccessFile
+import java.nio.channels.Channels
+import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,6 +58,10 @@ class AppModel(private val application: Application) : CoroutineScope by MainSco
     var importing by mutableStateOf(false)
         private set
     var importFailed by mutableStateOf(false)
+        private set
+    var partsMissing by mutableStateOf(false)
+        private set
+    var importProgress by mutableFloatStateOf(0f)
         private set
     var managing by mutableStateOf(false)
     var mode by mutableStateOf(preferences.enum("mode", Mode.Walk))
@@ -125,18 +138,44 @@ class AppModel(private val application: Application) : CoroutineScope by MainSco
         load()
     }
 
-    /** Imports a region pack (zip) picked in the app or opened from the browser. */
-    fun install(pack: Uri) {
+    /** Imports region packs or parts of them (zips), picked here or opened elsewhere. */
+    fun install(packs: List<Uri>) {
+        if (packs.isEmpty()) return
         importing = true
+        importProgress = 0f
         importFailed = false
+        partsMissing = false
         launch {
-            val name = runCatching { withContext(Dispatchers.IO) { unpack(pack) } }
+            val names = runCatching { unpackAll(packs) }
                 .onFailure { Log.e("Kiesel", "import failed", it) }
                 .getOrNull()
             importing = false
             regions = installedRegions()
-            if (name == null) importFailed = true else activate(name)
+            val complete = names.orEmpty().filterNotNull().lastOrNull { it in regions }
+            when {
+                names == null || null in names -> importFailed = true
+                complete == null -> partsMissing = true
+                else -> activate(complete)
+            }
         }
+    }
+
+    /** Parts unpack in parallel: each one's pieces go to their own place. */
+    private suspend fun unpackAll(packs: List<Uri>) = coroutineScope {
+        val resolver = application.contentResolver
+        val total = packs.sumOf { pack ->
+            resolver.openAssetFileDescriptor(pack, "r")?.use { it.length } ?: 0L
+        }
+        val read = AtomicLong()
+        packs.map { pack ->
+            async(Dispatchers.IO) {
+                val input = resolver.openInputStream(pack) ?: return@async null
+                unpack(CountingStream(input) { bytes ->
+                    val done = read.addAndGet(bytes.toLong())
+                    importProgress = done.toFloat() / total.coerceAtLeast(1)
+                })
+            }
+        }.awaitAll()
     }
 
     fun delete(name: String) {
@@ -149,28 +188,54 @@ class AppModel(private val application: Application) : CoroutineScope by MainSco
 
     private fun installedRegions() =
         maps.listFiles().orEmpty()
-            .filter { File(it, GRAPH).exists() }
+            .filter { folder -> FILES.all { File(folder, it).exists() } }
             .map { it.name }
             .sorted()
 
     /** Files are written beside the old ones and renamed, so open maps stay intact. */
-    private fun unpack(pack: Uri): String? {
+    private fun unpack(input: InputStream): String? {
         val root = maps.canonicalFile
         var name: String? = null
-        val input = application.contentResolver.openInputStream(pack) ?: return null
-        ZipInputStream(input.buffered()).use { zip ->
+        ZipInputStream(input.buffered(BUFFER_BYTES)).use { zip ->
             val entries = generateSequence { zip.nextEntry }.filter { !it.isDirectory }
             entries.forEach { entry ->
                 val target = File(root, entry.name).canonicalFile
-                check(target.parentFile?.parentFile == root) { "Bad entry ${entry.name}" }
-                target.parentFile.mkdirs()
-                val partial = File(target.path + ".part")
-                partial.outputStream().use { zip.copyTo(it) }
-                partial.renameTo(target)
-                name = target.parentFile.name
+                val folder = target.parentFile
+                check(folder?.parentFile == root) { "Bad entry ${entry.name}" }
+                folder.mkdirs()
+                val piece = PIECE.matchEntire(target.name)
+                if (piece == null) save(zip, target) else savePiece(zip, folder, piece)
+                name = folder.name
             }
         }
-        return name?.takeIf { File(root, "$it/$GRAPH").exists() }
+        return name
+    }
+
+    private fun save(zip: InputStream, target: File) {
+        val partial = File(target.path + ".part")
+        partial.outputStream().use { zip.copyTo(it, BUFFER_BYTES) }
+        partial.renameTo(target)
+    }
+
+    /**
+     * Writes piece "file.2of3" straight to its place in "file.part" and leaves the
+     * piece's name as a marker; once all pieces are in, "file.part" becomes "file".
+     */
+    private fun savePiece(zip: InputStream, folder: File, piece: MatchResult) {
+        val (name, index, count) = piece.destructured
+        val partial = File(folder, "$name.part")
+        RandomAccessFile(partial, "rw").use { file ->
+            val channel = file.channel.position((index.toLong() - 1) * PIECE_BYTES)
+            zip.copyTo(Channels.newOutputStream(channel), BUFFER_BYTES)
+            if (index == count) file.setLength(channel.position())
+        }
+        synchronized(this) {
+            File(folder, piece.value).createNewFile()
+            val markers = (1..count.toInt()).map { File(folder, "$name.${it}of$count") }
+            if (!markers.all(File::exists)) return
+            partial.renameTo(File(folder, name))
+            markers.forEach(File::delete)
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -358,6 +423,15 @@ private inline fun <reified T : Enum<T>> android.content.SharedPreferences.enum(
 private const val GRAPH = "graph"
 private const val HEIGHTS = "heights"
 private const val TILES = "tiles.pmtiles"
+private val FILES = listOf(GRAPH, HEIGHTS, TILES)
+private val PIECE = Regex("(.+)\\.(\\d+)of(\\d+)")
+private const val BUFFER_BYTES = 1 shl 20
+
+private class CountingStream(input: InputStream, private val counted: (Int) -> Unit) :
+    FilterInputStream(input) {
+    override fun read(buffer: ByteArray, offset: Int, length: Int) =
+        super.read(buffer, offset, length).also { if (it > 0) counted(it) }
+}
 private const val MAX_RESULTS = 8
 private const val LOCATION_INTERVAL_MILLIS = 1000L
 private const val REROUTE_INTERVAL_MILLIS = 8_000L

@@ -2,58 +2,139 @@ package kiesel
 
 import com.wolt.osm.parallelpbf.ParallelBinaryParser
 import java.io.InputStream
+import java.util.Arrays
 import kotlin.math.roundToInt
 
+/** A way's node references are [first] until [end] in the importer's reference table. */
 private class RawWay(
-    val nodeIds: LongArray,
+    val first: Int,
+    val end: Int,
     val road: Road?,
     val surface: Int,
     val oneway: Boolean,
     val roundabout: Boolean,
     val name: String?,
-    val water: Boolean?,
 )
 
 /**
  * Builds a [Graph] from an OSM PBF extract; [open] is called once per pass.
- * The importer's node tables are garbage before the graph is compiled.
+ * Node tables are primitive arrays, freed before the graph is compiled.
  */
 fun importExtract(
     open: () -> InputStream,
     heights: (Double, Double) -> Double = { _, _ -> 0.0 },
-): Graph = Importer(open, heights).run().build()
+): Graph = GraphBuilder(heights).also { Importer(open, it).run() }.build()
 
 private class Importer(
     private val open: () -> InputStream,
-    heights: (Double, Double) -> Double,
+    private val builder: GraphBuilder,
 ) {
-    private val builder = GraphBuilder(heights)
-    private val ways = readWays(open)
-    private val ids = uniqueSorted(ways)
-    private val latitudes = IntArray(ids.size) { UNKNOWN }
-    private val longitudes = IntArray(ids.size)
-    private val uses = IntArray(ids.size)
-    private val nodeOf = IntArray(ids.size) { -1 }
-    private val namedStreets = HashSet<String>()
+    private val ways = ArrayList<RawWay>()
+    private val positions: IntArray
+    private val latitudes: IntArray
+    private val longitudes: IntArray
 
-    fun run(): GraphBuilder {
-        readNodes()
-        ways.filter { it.road != null }.forEach { way ->
-            val positions = positionsOf(way)
-            uses[positions.first()] += 2
-            uses[positions.last()] += 2
-            positions.forEach { uses[it]++ }
-        }
-        ways.forEach { way ->
-            val positions = positionsOf(way)
-            if (way.road != null) addStreet(way, positions)
-            if (way.water != null) addArea(way.water, positions)
-        }
-        return builder
+    init {
+        val references = readWays()
+        val ids = uniqueSorted(references)
+        positions = IntArray(references.size)
+        Arrays.parallelSetAll(positions) { ids.binarySearch(references[it]) }
+        latitudes = IntArray(ids.size) { UNKNOWN }
+        longitudes = IntArray(ids.size)
+        readNodes(ids)
     }
 
-    private fun positionsOf(way: RawWay) =
-        IntArray(way.nodeIds.size) { ids.binarySearch(way.nodeIds[it]) }
+    private val uses = ByteArray(latitudes.size)
+    private val nodeOf = IntArray(latitudes.size) { -1 }
+    private val namedStreets = HashSet<String>()
+
+    fun run() {
+        val (roads, areas) = ways.partition { it.road != null }
+        roads.forEach(::countUses)
+        spatialOrder(roads).forEach(::addStreet)
+        areas.forEach(::addArea)
+    }
+
+    /** All node references of kept ways, in way order. */
+    private fun readWays(): LongArray {
+        val references = Longs()
+        val names = HashMap<String, String>()
+        parse {
+            onWay { way ->
+                val tags = way.tags
+                val road = roadOf(tags)
+                val closed = way.nodes.size > 3 && way.nodes.first() == way.nodes.last()
+                val area = closed && waterOf(tags) != null
+                if (road == null && !area) return@onWay
+                val direction = onewayOf(tags)
+                val nodes = if (direction < 0) way.nodes.reversed() else way.nodes
+                synchronized(ways) {
+                    val first = references.size
+                    nodes.forEach(references::add)
+                    ways += RawWay(
+                        first = first,
+                        end = references.size,
+                        road = road,
+                        surface = surfaceOf(tags),
+                        oneway = direction != 0,
+                        roundabout = tags["junction"] in ROUNDABOUTS,
+                        name = tags["name"]?.let { names.getOrPut(it) { it } },
+                    )
+                }
+            }
+        }
+        return references.toArray()
+    }
+
+    private fun readNodes(ids: LongArray) = parse {
+        onNode { node ->
+            val position = ids.binarySearch(node.id)
+            if (position >= 0) {
+                latitudes[position] = (node.lat * FIXED_POINT).roundToInt()
+                longitudes[position] = (node.lon * FIXED_POINT).roundToInt()
+            }
+            val name = node.tags["name"]
+            if (name != null && node.tags.keys.any { it in PLACE_KEYS }) {
+                val place = Place(name, LatLon(node.lat, node.lon), rankOf(node.tags))
+                synchronized(builder) { builder.addPlace(place) }
+            }
+        }
+    }
+
+    private fun parse(configure: ParallelBinaryParser.() -> Unit) = open().use {
+        val threads = Runtime.getRuntime().availableProcessors()
+        ParallelBinaryParser(it, threads).apply(configure).parse()
+    }
+
+    /** Ends and shared nodes count 2 or more: the graph has a junction there. */
+    private fun countUses(way: RawWay) {
+        for (i in way.first until way.end) {
+            if (uses[positions[i]] < 2) uses[positions[i]]++
+        }
+        uses[positions[way.first]] = 2
+        uses[positions[way.end - 1]] = 2
+    }
+
+    /** Ways near each other on the map get nearby node and edge numbers. */
+    private fun spatialOrder(roads: List<RawWay>): List<RawWay> {
+        val keys = LongArray(roads.size) {
+            (zOrder(positions[roads[it].first]) shl 32) or it.toLong()
+        }
+        keys.sort()
+        return keys.map { roads[(it and INDEX_MASK).toInt()] }
+    }
+
+    /** Interleaved row and column bits on a 65536² grid over the globe. */
+    private fun zOrder(position: Int): Long {
+        val row = ((latitude(position) + 90) / 180 * GRID_MAX).toLong()
+        val column = ((longitude(position) + 180) / 360 * GRID_MAX).toLong()
+        var key = 0L
+        for (bit in 0 until 16) {
+            key = key or ((row shr bit and 1) shl (2 * bit + 1))
+            key = key or ((column shr bit and 1) shl (2 * bit))
+        }
+        return key
+    }
 
     private fun isKnown(position: Int) = latitudes[position] != UNKNOWN
 
@@ -63,56 +144,40 @@ private class Importer(
 
     private fun point(position: Int) = LatLon(latitude(position), longitude(position))
 
-    /** Interleaved latitude, longitude of [positions]. */
-    private fun coordinates(positions: IntArray, from: Int, count: Int) =
-        DoubleArray(count * 2) {
-            val position = positions[from + it / 2]
-            if (it % 2 == 0) latitude(position) else longitude(position)
-        }
-
-    private fun readNodes() = parse(open) {
-        onNode { node ->
-            val position = ids.binarySearch(node.id)
-            if (position >= 0) {
-                latitudes[position] = (node.lat * FIXED_POINT).roundToInt()
-                longitudes[position] = (node.lon * FIXED_POINT).roundToInt()
-            }
-            val name = node.tags["name"]
-            if (name != null && node.tags.keys.any { it in PLACE_KEYS }) {
-                val location = LatLon(node.lat, node.lon)
-                builder.addPlace(Place(name, location, rankOf(node.tags)))
-            }
-        }
+    /** Interleaved latitude, longitude of references [from] until [end]. */
+    private fun coordinates(from: Int, end: Int) = DoubleArray((end - from) * 2) {
+        val position = positions[from + it / 2]
+        if (it % 2 == 0) latitude(position) else longitude(position)
     }
 
-    private fun addStreet(way: RawWay, positions: IntArray) {
-        var start = 0
-        while (start < positions.size) {
+    private fun addStreet(way: RawWay) {
+        var start = way.first
+        while (start < way.end) {
             if (!isKnown(positions[start])) {
                 start++
                 continue
             }
-            var end = start
-            while (end + 1 < positions.size && isKnown(positions[end + 1])) end++
-            addRun(way, positions.copyOfRange(start, end + 1))
-            start = end + 1
+            var last = start
+            while (last + 1 < way.end && isKnown(positions[last + 1])) last++
+            addRun(way, start, last)
+            start = last + 1
         }
     }
 
-    private fun addRun(way: RawWay, run: IntArray) {
-        addName(way, run[run.size / 2])
-        var first = 0
-        for (i in 1..run.lastIndex) {
-            if (i != run.lastIndex && uses[run[i]] < 2) continue
-            addEdge(way, run, first, i)
-            first = i
+    private fun addRun(way: RawWay, first: Int, last: Int) {
+        addName(way, positions[(first + last + 1) / 2])
+        var start = first
+        for (i in first + 1..last) {
+            if (i != last && uses[positions[i]] < 2) continue
+            addEdge(way, start, i)
+            start = i
         }
     }
 
-    private fun addEdge(way: RawWay, run: IntArray, first: Int, last: Int) {
-        val via = coordinates(run, first + 1, last - first - 1)
-        val from = node(run[first])
-        val to = node(run[last])
+    private fun addEdge(way: RawWay, first: Int, last: Int) {
+        val via = coordinates(first + 1, last)
+        val from = node(positions[first])
+        val to = node(positions[last])
         if (from == to && via.isEmpty()) return
         builder.addEdge(
             from, to, way.road!!, way.surface, way.oneway, way.name, via, way.roundabout,
@@ -132,52 +197,19 @@ private class Importer(
         }
     }
 
-    private fun addArea(water: Boolean, positions: IntArray) {
-        if (!positions.all(::isKnown)) return
-        builder.addArea(water, coordinates(positions, 0, positions.size))
+    private fun addArea(way: RawWay) {
+        if (!(way.first until way.end).all { isKnown(positions[it]) }) return
+        builder.addArea(coordinates(way.first, way.end))
     }
 }
 
-private fun uniqueSorted(ways: List<RawWay>): LongArray {
-    val all = LongArray(ways.sumOf { it.nodeIds.size })
-    var cursor = 0
-    ways.forEach {
-        it.nodeIds.copyInto(all, cursor)
-        cursor += it.nodeIds.size
-    }
-    all.sort()
+private fun uniqueSorted(references: LongArray): LongArray {
+    val all = references.copyOf()
+    Arrays.parallelSort(all)
     var count = 0
     for (i in all.indices) if (i == 0 || all[i] != all[i - 1]) all[count++] = all[i]
     return all.copyOf(count)
 }
-
-private fun readWays(open: () -> InputStream): List<RawWay> {
-    val ways = ArrayList<RawWay>()
-    parse(open) {
-        onWay { way ->
-            val ids = way.nodes.toLongArray()
-            val tags = way.tags
-            val road = roadOf(tags)
-            val closed = ids.size > 3 && ids.first() == ids.last()
-            val water = if (closed) waterOf(tags) else null
-            if (road == null && water == null) return@onWay
-            val direction = onewayOf(tags)
-            ways += RawWay(
-                nodeIds = if (direction < 0) ids.reversedArray() else ids,
-                road = road,
-                surface = surfaceOf(tags),
-                oneway = direction != 0,
-                roundabout = tags["junction"] in ROUNDABOUTS,
-                name = tags["name"],
-                water = water,
-            )
-        }
-    }
-    return ways
-}
-
-private fun parse(open: () -> InputStream, configure: ParallelBinaryParser.() -> Unit) =
-    open().use { ParallelBinaryParser(it, 1).apply(configure).parse() }
 
 internal fun roadOf(tags: Map<String, String>): Road? {
     val closed = tags["access"] in setOf("no", "private")
@@ -240,6 +272,8 @@ internal fun waterOf(tags: Map<String, String>): Boolean? = when {
 /** OSM stores coordinates as 1e-7 degree integers. */
 private const val FIXED_POINT = 1e7
 private const val UNKNOWN = Int.MIN_VALUE
+private const val GRID_MAX = 0xFFFF
+private const val INDEX_MASK = 0xFFFFFFFFL
 
 private val ROUNDABOUTS = setOf("roundabout", "circular")
 

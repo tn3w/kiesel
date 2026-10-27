@@ -45,6 +45,7 @@
     <string name="download">تنزيل</string>
     <string name="import_pack">استيراد</string>
     <string name="import_failed">ليست حزمة خرائط Kiesel</string>
+    <string name="import_parts">تم استيراد جزء. استورد أيضًا الأجزاء الأخرى من هذه المنطقة.</string>
     <string name="delete">حذف</string>
     <plurals name="in_meters">
         <item quantity="zero">بعد %1$d متر، %2$s</item>

@@ -45,6 +45,7 @@
     <string name="download">डाउनलोड करें</string>
     <string name="import_pack">इम्पोर्ट करें</string>
     <string name="import_failed">यह Kiesel मैप पैक नहीं है</string>
+    <string name="import_parts">भाग इम्पोर्ट हो गया। इस क्षेत्र के बाकी भाग भी इम्पोर्ट करें।</string>
     <string name="delete">हटाएँ</string>
     <plurals name="in_meters">
         <item quantity="other">%1$d मीटर बाद %2$s</item>

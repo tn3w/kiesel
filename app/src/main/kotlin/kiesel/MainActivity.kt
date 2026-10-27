@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
         ) { model.trackLocation() }
 
         model.load()
-        if (savedInstanceState == null) intent.data?.let(model::install)
+        if (savedInstanceState == null) intent.data?.let { model.install(listOf(it)) }
         permissions.launch(
             arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent.data?.let(model::install)
+        intent.data?.let { model.install(listOf(it)) }
     }
 
     override fun onStart() {

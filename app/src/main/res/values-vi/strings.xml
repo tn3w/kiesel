@@ -45,6 +45,7 @@
     <string name="download">Tải xuống</string>
     <string name="import_pack">Nhập</string>
     <string name="import_failed">Không phải gói bản đồ Kiesel</string>
+    <string name="import_parts">Đã nhập một phần. Hãy nhập cả các phần còn lại của khu vực này.</string>
     <string name="delete">Xóa</string>
     <plurals name="in_meters">
         <item quantity="other">Sau %1$d mét, %2$s</item>

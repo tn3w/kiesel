@@ -45,6 +45,7 @@
     <string name="download">Unduh</string>
     <string name="import_pack">Impor</string>
     <string name="import_failed">Bukan paket peta Kiesel</string>
+    <string name="import_parts">Bagian diimpor. Impor juga bagian lain dari wilayah ini.</string>
     <string name="delete">Hapus</string>
     <plurals name="in_meters">
         <item quantity="other">Dalam %1$d meter, %2$s</item>

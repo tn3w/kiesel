@@ -45,6 +45,7 @@
     <string name="download">İndir</string>
     <string name="import_pack">İçe aktar</string>
     <string name="import_failed">Kiesel harita paketi değil</string>
+    <string name="import_parts">Parça içe aktarıldı. Bu bölgenin diğer parçalarını da içe aktarın.</string>
     <string name="delete">Sil</string>
     <plurals name="in_meters">
         <item quantity="other">%1$d metre sonra %2$s</item>

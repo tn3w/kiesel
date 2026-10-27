@@ -45,6 +45,7 @@
     <string name="download">다운로드</string>
     <string name="import_pack">가져오기</string>
     <string name="import_failed">Kiesel 지도 팩이 아닙니다</string>
+    <string name="import_parts">일부를 가져왔습니다. 이 지역의 나머지 부분도 가져오세요.</string>
     <string name="delete">삭제</string>
     <plurals name="in_meters">
         <item quantity="other">%1$d미터 앞에서 %2$s</item>

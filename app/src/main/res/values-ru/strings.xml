@@ -45,6 +45,7 @@
     <string name="download">Скачать</string>
     <string name="import_pack">Импорт</string>
     <string name="import_failed">Это не пакет карт Kiesel</string>
+    <string name="import_parts">Часть импортирована. Импортируйте и остальные части этого региона.</string>
     <string name="delete">Удалить</string>
     <plurals name="in_meters">
         <item quantity="one">Через %1$d метр %2$s</item>

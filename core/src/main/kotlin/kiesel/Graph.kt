@@ -38,14 +38,10 @@ enum class Road(val traffic: Int) {
 /** [rank]: 3 city, 2 town, 1 village or suburb, 0 anything else. */
 class Place(val name: String, val location: LatLon, val rank: Int = 0)
 
-/**
- * Names packed into one string (one per line) so a country stays searchable.
- * [keys] is the same text folded by [searchKey], so offsets match.
- */
+/** Searchable names; [keys] holds the same names folded by [searchKey]. */
 class Places internal constructor(
-    private val names: String,
-    private val keys: String,
-    private val starts: IntBuffer,
+    private val names: Texts,
+    private val keys: Texts,
     private val ranks: ByteBuffer,
     private val latitudes: FloatBuffer,
     private val longitudes: FloatBuffer,
@@ -53,32 +49,23 @@ class Places internal constructor(
     val size get() = ranks.limit()
 
     internal fun columns() =
-        arrayOf<Buffer>(text(names), text(keys), starts, ranks, latitudes, longitudes)
+        arrayOf(*names.columns(), *keys.columns(), ranks, latitudes, longitudes)
 
     internal companion object {
         fun read(columns: Columns) = with(columns) {
-            Places(text(), text(), ints(), bytes(), floats(), floats())
+            Places(texts(), texts(), bytes(), floats(), floats())
         }
     }
 
     /** Whole-name prefixes first, then word starts; bigger places, then nearer ones. */
     fun search(query: String, near: LatLon, limit: Int): List<Place> {
-        val needle = searchKey(query.trim().replace('\n', ' '))
+        val needle = searchKey(query.trim())
         if (needle.isEmpty()) return emptyList()
-        val hits = ArrayList<Int>()
-        var position = keys.indexOf(needle)
-        while (position >= 0 && hits.size < MAX_SEARCH_HITS) {
-            val index = partition(starts.limit()) { starts[it] <= position } - 1
-            hits += index
-            position = keys.indexOf(needle, starts[index + 1])
-        }
-        return hits.sortedWith(
-            compareBy(
-                { matchQuality(keys.substring(starts[it], starts[it + 1] - 1), needle) },
-                { -ranks[it] },
-                { near.distanceTo(locationAt(it)) },
-            )
-        ).map(::placeAt).distinctBy(::duplicateKey).take(limit)
+        val hits = keys.containing(needle.encodeToByteArray(), MAX_SEARCH_HITS)
+        val quality = hits.associateWith { matchQuality(keys[it], needle) }
+        val meters = hits.associateWith { near.distanceTo(locationAt(it)) }
+        return hits.sortedWith(compareBy({ quality[it] }, { -ranks[it] }, { meters[it] }))
+            .map(::placeAt).distinctBy(::duplicateKey).take(limit)
     }
 
     private fun matchQuality(key: String, needle: String) = when {
@@ -97,11 +84,8 @@ class Places internal constructor(
     private fun locationAt(index: Int) =
         LatLon(latitudes[index].toDouble(), longitudes[index].toDouble())
 
-    private fun placeAt(index: Int) = Place(
-        names.substring(starts[index], starts[index + 1] - 1),
-        locationAt(index),
-        ranks[index].toInt(),
-    )
+    private fun placeAt(index: Int) =
+        Place(names[index], locationAt(index), ranks[index].toInt())
 }
 
 /** Lowercase without accents, one char per char: "Zürich" → "zurich". */
@@ -135,10 +119,10 @@ class Graph internal constructor(
     val shapeStarts: IntBuffer,
     val shapeLatitudes: FloatBuffer,
     val shapeLongitudes: FloatBuffer,
-    val streetNames: List<String>,
+    val streetNames: Texts,
     val places: Places,
     index: Index? = null,
-    bearings: ShortBuffer? = null,
+    bearings: ByteBuffer? = null,
 ) {
     val nodeCount get() = latitudes.limit()
 
@@ -149,9 +133,9 @@ class Graph internal constructor(
     @PublishedApi
     internal val index = index ?: Index.of(this)
 
-    /** Start and end bearing per arc in whole degrees, computed once for routing. */
-    private val bearings = bearings ?: ShortBuffer.wrap(ShortArray(arcCount * 2) {
-        stretchBearing(it / 2, atEnd = it % 2 == 1).roundToInt().toShort()
+    /** Start and end bearing per arc, computed once for routing. */
+    private val bearings = bearings ?: ByteBuffer.wrap(ByteArray(arcCount * 2) {
+        bearingByte(stretchBearing(it / 2, atEnd = it % 2 == 1))
     })
 
     fun point(node: Int) = LatLon(latitudes[node].toDouble(), longitudes[node].toDouble())
@@ -189,7 +173,7 @@ class Graph internal constructor(
 
     fun degree(node: Int) = index.first[node + 1] - index.first[node]
 
-    fun streetName(edge: Int) = streetNames.getOrNull(streets[edge])
+    fun streetName(edge: Int) = streets[edge].takeIf { it >= 0 }?.let { streetNames[it] }
 
     inline fun forEachOutgoing(node: Int, action: (Int) -> Unit) {
         for (position in index.first[node] until index.first[node + 1]) {
@@ -215,10 +199,10 @@ class Graph internal constructor(
     }
 
     /** Degrees clockwise from north over the first stretch of the arc. */
-    fun startBearing(arc: Int) = bearings[arc * 2].toDouble()
+    fun startBearing(arc: Int) = degrees(bearings[arc * 2])
 
     /** Degrees clockwise from north over the last stretch of the arc. */
-    fun endBearing(arc: Int) = bearings[arc * 2 + 1].toDouble()
+    fun endBearing(arc: Int) = degrees(bearings[arc * 2 + 1])
 
     /** Degrees in -180..180, positive = right. */
     fun turnAngle(arrival: Int, departure: Int) =
@@ -236,10 +220,10 @@ class Graph internal constructor(
 
     /** Writes the format [read] maps; leaves [output] open. */
     fun write(output: OutputStream) = output.writeColumns(
-        latitudes, longitudes, from, to, lengths, roads, surfaces, scenery, crowding,
-        oneway, roundabout, streets, rise, fall, shapeStarts, shapeLatitudes,
-        shapeLongitudes, text(streetNames.joinToString("\n")), *places.columns(),
-        index.first, index.arcs, index.entries, bearings,
+        IntBuffer.wrap(intArrayOf(FORMAT)), latitudes, longitudes, from, to, lengths,
+        roads, surfaces, scenery, crowding, oneway, roundabout, streets, rise, fall,
+        shapeStarts, shapeLatitudes, shapeLongitudes, *streetNames.columns(),
+        *places.columns(), index.first, index.arcs, index.entries, bearings,
     )
 
     private fun coordinate(
@@ -311,7 +295,8 @@ class Graph internal constructor(
 
     companion object {
         /** Maps a [write] file: routing reads it in place, off the heap. */
-        fun read(file: File) = with(Columns(mapFile(file))) {
+        fun read(file: File) = readColumns(file) {
+            check(ints()[0] == FORMAT) { "Pack format changed: download the map again" }
             Graph(
                 latitudes = floats(),
                 longitudes = floats(),
@@ -330,10 +315,10 @@ class Graph internal constructor(
                 shapeStarts = ints(),
                 shapeLatitudes = floats(),
                 shapeLongitudes = floats(),
-                streetNames = text().split('\n'),
+                streetNames = texts(),
                 places = Places.read(this),
                 index = Index(ints(), ints(), longs()),
-                bearings = shorts(),
+                bearings = bytes(),
             )
         }
     }
@@ -362,8 +347,8 @@ internal fun project(point: LatLon, start: LatLon, end: LatLon): Projection {
 internal class Index(val first: IntBuffer, val arcs: IntBuffer, val entries: LongBuffer) {
     /** Edges with a point inside the square of cells around [point]. */
     fun edgesWithin(point: LatLon, radius: Int): List<Int> {
-        val row = cellIndex(point.latitude)
-        val column = cellIndex(point.longitude)
+        val row = indexCell(point.latitude)
+        val column = indexCell(point.longitude)
         return (row - radius..row + radius).flatMap { r ->
             val low = lowerBound(cellId(r, column - radius) shl EDGE_BITS)
             val high = lowerBound((cellId(r, column + radius) + 1) shl EDGE_BITS)
@@ -375,6 +360,7 @@ internal class Index(val first: IntBuffer, val arcs: IntBuffer, val entries: Lon
 
     companion object {
         fun of(graph: Graph): Index {
+            check(graph.edgeCount <= EDGE_MASK) { "Too many edges: ${graph.edgeCount}" }
             val first = IntArray(graph.nodeCount + 1)
             for (edge in 0 until graph.edgeCount) {
                 first[graph.from[edge] + 1]++
@@ -418,7 +404,7 @@ private fun cellAlong(graph: Graph, edge: Int, segment: Int, share: Double): Lon
         lerp(coordinate(edge, segment), coordinate(edge, next), share)
     val latitude = at(graph::latitudeAt)
     val longitude = at(graph::longitudeAt)
-    return cellId(cellIndex(latitude), cellIndex(longitude))
+    return cellId(indexCell(latitude), indexCell(longitude))
 }
 
 private fun sampleSteps(graph: Graph, edge: Int, segment: Int): Int {
@@ -426,33 +412,36 @@ private fun sampleSteps(graph: Graph, edge: Int, segment: Int): Int {
     val latitudeSpan = graph.latitudeAt(edge, next) - graph.latitudeAt(edge, segment)
     val longitudeSpan =
         graph.longitudeAt(edge, next) - graph.longitudeAt(edge, segment)
-    val cells = maxOf(abs(latitudeSpan), abs(longitudeSpan)) * CELLS_PER_DEGREE * 2
+    val cells = maxOf(abs(latitudeSpan), abs(longitudeSpan)) * INDEX_CELLS_PER_DEGREE * 2
     return maxOf(1, ceil(cells).toInt())
 }
 
-/** Collects raw map data and compiles it into an immutable [Graph]. */
+/**
+ * Collects raw map data in primitive arrays, so a whole country fits in memory, and
+ * compiles it into an immutable [Graph].
+ */
 class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0.0 }) {
-    private class Edge(
-        val from: Int,
-        val to: Int,
-        val road: Road,
-        val surface: Int,
-        val oneway: Boolean,
-        val roundabout: Boolean,
-        val street: String?,
-        val via: DoubleArray,
-    )
-
-    private class Area(val water: Boolean, val ring: DoubleArray)
-
-    private val nodes = ArrayList<LatLon>()
-    private val edges = ArrayList<Edge>()
+    private val nodeLatitudes = Floats()
+    private val nodeLongitudes = Floats()
+    private val from = Ints()
+    private val to = Ints()
+    private val roads = Ints()
+    private val surfaces = Ints()
+    private val oneway = Ints()
+    private val roundabout = Ints()
+    private val streets = Ints()
+    private val viaStarts = Ints().apply { add(0) }
+    private val via = Floats()
+    private val streetNames = ArrayList<String>()
+    private val streetIds = HashMap<String, Int>()
     private val places = ArrayList<Place>()
-    private val areas = ArrayList<Area>()
+    private val areaStarts = Ints().apply { add(0) }
+    private val areaPoints = Floats()
 
     fun addNode(latitude: Double, longitude: Double): Int {
-        nodes += LatLon(latitude, longitude)
-        return nodes.lastIndex
+        nodeLatitudes.add(latitude.toFloat())
+        nodeLongitudes.add(longitude.toFloat())
+        return nodeLatitudes.size - 1
     }
 
     /** [via] holds interior points as interleaved latitude, longitude. */
@@ -466,8 +455,15 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
         via: DoubleArray = DoubleArray(0),
         roundabout: Boolean = false,
     ) {
-        val name = street?.replace('\n', ' ')
-        edges += Edge(from, to, road, surface, oneway, roundabout, name, via)
+        this.from.add(from)
+        this.to.add(to)
+        roads.add(road.ordinal)
+        surfaces.add(surface)
+        this.oneway.add(if (oneway) 1 else 0)
+        this.roundabout.add(if (roundabout) 1 else 0)
+        streets.add(street?.let(::streetId) ?: -1)
+        via.forEach { this.via.add(it.toFloat()) }
+        viaStarts.add(this.via.size)
     }
 
     fun addPlace(place: Place) {
@@ -475,106 +471,132 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
     }
 
     /** [ring] holds closed-polygon vertices as interleaved latitude, longitude. */
-    fun addArea(water: Boolean, ring: DoubleArray) {
-        areas += Area(water, ring)
+    fun addArea(ring: DoubleArray) {
+        ring.forEach { areaPoints.add(it.toFloat()) }
+        areaStarts.add(areaPoints.size)
+    }
+
+    private fun streetId(name: String) = streetIds.getOrPut(name.replace('\n', ' ')) {
+        streetNames += name
+        streetNames.lastIndex
     }
 
     fun build(): Graph {
         val kept = largestComponent()
-        val remap = IntArray(nodes.size) { -1 }
+        val remap = IntArray(nodeLatitudes.size) { -1 }
         kept.forEach {
-            remap[it.from] = 0
-            remap[it.to] = 0
+            remap[from[it]] = 0
+            remap[to[it]] = 0
         }
+        val points = IntArray(remap.count { it == 0 })
         var count = 0
-        for (node in remap.indices) if (remap[node] == 0) remap[node] = count++
-        val points = nodes.filterIndexed { node, _ -> remap[node] >= 0 }
-        val grid = Grid(extent(points))
-        kept.forEach { grid.count(it.via) }
-        points.forEach { grid.count(doubleArrayOf(it.latitude, it.longitude)) }
-        areas.forEach { grid.fill(it.ring) }
-
-        val compiled = kept.map { compile(it, grid) }
-        val streetNames = kept.mapNotNull { it.street }.distinct()
-        val streetIds = streetNames.withIndex().associate { it.value to it.index }
-        val shapeStarts = IntArray(kept.size + 1)
-        compiled.forEachIndexed { i, edge ->
-            shapeStarts[i + 1] = shapeStarts[i] + edge.shape.size / 2
+        for (node in remap.indices) {
+            if (remap[node] < 0) continue
+            points[count] = node
+            remap[node] = count++
         }
-        val shape = DoubleArray(shapeStarts.last() * 2)
-        for (i in compiled.indices) compiled[i].shape.copyInto(shape, shapeStarts[i] * 2)
-        fun floats(size: Int, value: (Int) -> Double) =
-            FloatBuffer.wrap(FloatArray(size) { value(it).toFloat() })
-        fun bytes(value: (Int) -> Int) =
-            ByteBuffer.wrap(ByteArray(kept.size) { value(it).toByte() })
-        fun shorts(value: (Int) -> Double) =
-            ShortBuffer.wrap(ShortArray(kept.size) { decimeters(value(it)) })
-        fun ints(value: (Int) -> Int) = IntBuffer.wrap(IntArray(kept.size, value))
+        val grid = gridOf(kept, points)
+        val edges = CompiledEdges(kept.size)
+        kept.forEachIndexed { index, edge -> edges.add(index, rawPoints(edge), grid) }
+        fun ints(value: (Int) -> Int) =
+            IntBuffer.wrap(IntArray(kept.size) { value(kept[it]) })
+        fun bytes(values: Ints) =
+            ByteBuffer.wrap(ByteArray(kept.size) { values[kept[it]].toByte() })
+        fun floats(values: Floats) =
+            FloatBuffer.wrap(FloatArray(points.size) { values[points[it]] })
         return Graph(
-            latitudes = floats(points.size) { points[it].latitude },
-            longitudes = floats(points.size) { points[it].longitude },
-            from = ints { remap[kept[it].from] },
-            to = ints { remap[kept[it].to] },
-            lengths = floats(kept.size) { compiled[it].length },
-            roads = bytes { kept[it].road.ordinal },
-            surfaces = bytes { kept[it].surface },
-            scenery = bytes { compiled[it].scenery },
-            crowding = bytes { compiled[it].crowding },
-            oneway = bytes { if (kept[it].oneway) 1 else 0 },
-            roundabout = bytes { if (kept[it].roundabout) 1 else 0 },
-            streets = ints { streetIds[kept[it].street] ?: -1 },
-            rise = shorts { compiled[it].rise },
-            fall = shorts { compiled[it].fall },
-            shapeStarts = IntBuffer.wrap(shapeStarts),
-            shapeLatitudes = floats(shape.size / 2) { shape[it * 2] },
-            shapeLongitudes = floats(shape.size / 2) { shape[it * 2 + 1] },
-            streetNames = streetNames,
+            latitudes = floats(nodeLatitudes),
+            longitudes = floats(nodeLongitudes),
+            from = ints { remap[from[it]] },
+            to = ints { remap[to[it]] },
+            lengths = FloatBuffer.wrap(edges.lengths),
+            roads = bytes(roads),
+            surfaces = bytes(surfaces),
+            scenery = ByteBuffer.wrap(edges.scenery),
+            crowding = ByteBuffer.wrap(edges.crowding),
+            oneway = bytes(oneway),
+            roundabout = bytes(roundabout),
+            streets = ints { streets[it] },
+            rise = ShortBuffer.wrap(edges.rise),
+            fall = ShortBuffer.wrap(edges.fall),
+            shapeStarts = IntBuffer.wrap(edges.shapeStarts),
+            shapeLatitudes = FloatBuffer.wrap(edges.shapeLatitudes.toArray()),
+            shapeLongitudes = FloatBuffer.wrap(edges.shapeLongitudes.toArray()),
+            streetNames = Texts.of(streetNames),
             places = compilePlaces(),
         )
     }
 
-    private fun extent(points: List<LatLon>) = doubleArrayOf(
-        points.minOf { it.latitude },
-        points.maxOf { it.latitude },
-        points.minOf { it.longitude },
-        points.maxOf { it.longitude },
-    )
-
-    private class Compiled(
-        val shape: DoubleArray,
-        val length: Double,
-        val scenery: Int,
-        val crowding: Int,
-        val rise: Double,
-        val fall: Double,
-    )
-
-    private fun compile(edge: Edge, grid: Grid): Compiled {
-        val raw = rawPoints(edge)
-        val simplified = simplify(raw, ROAD_TOLERANCE_METERS)
-        val vertices = raw.size / 2
-        val scenery = (0 until vertices).sumOf {
-            grid.scenery(raw[it * 2], raw[it * 2 + 1])
-        }
-        val crowding = (0 until vertices).sumOf {
-            grid.crowding(raw[it * 2], raw[it * 2 + 1])
-        }
-        val (rise, fall) = climb(raw)
-        return Compiled(
-            simplified.copyOfRange(2, simplified.size - 2),
-            pathLength(simplified),
-            (scenery.toDouble() / vertices).roundToInt(),
-            (crowding.toDouble() / vertices).roundToInt(),
-            rise,
-            fall,
+    private fun gridOf(kept: IntArray, points: IntArray): Grid {
+        fun lowest(values: Floats) = points.minOf { values[it] }.toDouble()
+        fun highest(values: Floats) = points.maxOf { values[it] }.toDouble()
+        val grid = Grid(
+            lowest(nodeLatitudes), highest(nodeLatitudes),
+            lowest(nodeLongitudes), highest(nodeLongitudes),
         )
+        points.forEach { grid.count(nodeLatitudes[it], nodeLongitudes[it]) }
+        for (edge in kept) {
+            for (i in viaStarts[edge] until viaStarts[edge + 1] step 2) {
+                grid.count(via[i], via[i + 1])
+            }
+        }
+        for (area in 0 until areaStarts.size - 1) {
+            val start = areaStarts[area]
+            val size = areaStarts[area + 1] - start
+            grid.fill(DoubleArray(size) { areaPoints[start + it].toDouble() })
+        }
+        return grid
     }
 
-    private fun rawPoints(edge: Edge): DoubleArray {
-        val start = nodes[edge.from]
-        val end = nodes[edge.to]
-        return doubleArrayOf(start.latitude, start.longitude) + edge.via +
-            doubleArrayOf(end.latitude, end.longitude)
+    /** Edge columns derived from full geometry, filled in edge order. */
+    private inner class CompiledEdges(size: Int) {
+        val lengths = FloatArray(size)
+        val scenery = ByteArray(size)
+        val crowding = ByteArray(size)
+        val rise = ShortArray(size)
+        val fall = ShortArray(size)
+        val shapeStarts = IntArray(size + 1)
+        val shapeLatitudes = Floats()
+        val shapeLongitudes = Floats()
+
+        fun add(index: Int, raw: DoubleArray, grid: Grid) {
+            val simplified = simplify(raw, ROAD_TOLERANCE_METERS)
+            for (i in 2 until simplified.size - 2 step 2) {
+                shapeLatitudes.add(simplified[i].toFloat())
+                shapeLongitudes.add(simplified[i + 1].toFloat())
+            }
+            shapeStarts[index + 1] = shapeLatitudes.size
+            lengths[index] = pathLength(simplified).toFloat()
+            scenery[index] = mean(raw) { latitude, longitude ->
+                grid.scenery(latitude, longitude)
+            }
+            crowding[index] = mean(raw) { latitude, longitude ->
+                grid.crowding(latitude, longitude)
+            }
+            val (up, down) = climb(raw)
+            rise[index] = decimeters(up)
+            fall[index] = decimeters(down)
+        }
+
+        private inline fun mean(raw: DoubleArray, value: (Double, Double) -> Int): Byte {
+            val vertices = raw.size / 2
+            val sum = (0 until vertices).sumOf { value(raw[it * 2], raw[it * 2 + 1]) }
+            return (sum.toDouble() / vertices).roundToInt().toByte()
+        }
+    }
+
+    private fun rawPoints(edge: Int): DoubleArray {
+        val start = viaStarts[edge]
+        val last = viaStarts[edge + 1] - start + 2
+        return DoubleArray(last + 2) {
+            when (it) {
+                0 -> nodeLatitudes[from[edge]]
+                1 -> nodeLongitudes[from[edge]]
+                last -> nodeLatitudes[to[edge]]
+                last + 1 -> nodeLongitudes[to[edge]]
+                else -> via[start + it - 2]
+            }.toDouble()
+        }
     }
 
     /** Ascent and descent, ignoring wobble below [CLIMB_THRESHOLD_METERS]. */
@@ -607,8 +629,9 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
         return rise to fall
     }
 
-    private fun largestComponent(): List<Edge> {
-        val parent = IntArray(nodes.size) { it }
+    /** Edges of the largest connected part, in their original order. */
+    private fun largestComponent(): IntArray {
+        val parent = IntArray(nodeLatitudes.size) { it }
         fun find(node: Int): Int {
             var root = node
             while (parent[root] != root) root = parent[root]
@@ -620,27 +643,21 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
             }
             return root
         }
-        edges.forEach { parent[find(it.from)] = find(it.to) }
-        val sizes = IntArray(nodes.size)
-        edges.forEach { sizes[find(it.from)]++ }
+        val edges = 0 until from.size
+        edges.forEach { parent[find(from[it])] = find(to[it]) }
+        val sizes = IntArray(parent.size)
+        edges.forEach { sizes[find(from[it])]++ }
         val largest = sizes.indices.maxByOrNull { sizes[it] }
-        return edges.filter { find(it.from) == largest }
+        return edges.filter { find(from[it]) == largest }.toIntArray()
     }
 
     private fun compilePlaces(): Places {
-        val names = StringBuilder()
-        val starts = IntArray(places.size + 1)
-        places.forEachIndexed { i, place ->
-            starts[i] = names.length
-            names.append(place.name.replace('\n', ' ')).append('\n')
-        }
-        starts[places.size] = names.length
         fun floats(value: (Place) -> Double) =
             FloatBuffer.wrap(FloatArray(places.size) { value(places[it]).toFloat() })
+        val names = places.map { it.name }
         return Places(
-            names.toString(),
-            searchKey(names.toString()),
-            IntBuffer.wrap(starts),
+            Texts.of(names),
+            Texts.of(names.map(::searchKey)),
             ByteBuffer.wrap(ByteArray(places.size) { places[it].rank.toByte() }),
             floats { it.location.latitude },
             floats { it.location.longitude },
@@ -648,29 +665,64 @@ class GraphBuilder(private val heights: (Double, Double) -> Double = { _, _ -> 0
     }
 }
 
-/** Node density and green/water coverage on a ~100 m cell grid over the data's extent. */
-private class Grid(extent: DoubleArray) {
-    private val minRow: Int
-    private val minColumn: Int
-    private val rows: Int
-    private val columns: Int
-    private val green: BitSet
-    private val density: ShortArray
+/** Growable int array without boxing. */
+internal class Ints {
+    private var values = IntArray(16)
+    var size = 0
+        private set
 
-    init {
-        minRow = cellIndex(extent[0]) - MARGIN_CELLS
-        minColumn = cellIndex(extent[2]) - MARGIN_CELLS
-        rows = cellIndex(extent[1]) - minRow + MARGIN_CELLS + 1
-        columns = cellIndex(extent[3]) - minColumn + MARGIN_CELLS + 1
-        green = BitSet(rows * columns)
-        density = ShortArray(rows * columns)
+    fun add(value: Int) {
+        if (size == values.size) values = values.copyOf(size * 2)
+        values[size++] = value
     }
 
-    fun count(points: DoubleArray) {
-        for (i in 0 until points.size / 2) {
-            val cell = slot(cellIndex(points[i * 2]), cellIndex(points[i * 2 + 1]))
-            if (cell >= 0 && density[cell] < Short.MAX_VALUE) density[cell]++
-        }
+    operator fun get(index: Int) = values[index]
+
+    fun toArray() = values.copyOf(size)
+}
+
+/** Growable float array without boxing. */
+internal class Floats {
+    private var values = FloatArray(16)
+    var size = 0
+        private set
+
+    fun add(value: Float) {
+        if (size == values.size) values = values.copyOf(size * 2)
+        values[size++] = value
+    }
+
+    operator fun get(index: Int) = values[index]
+
+    fun toArray() = values.copyOf(size)
+}
+
+/** Growable long array without boxing. */
+internal class Longs {
+    private var values = LongArray(16)
+    var size = 0
+        private set
+
+    fun add(value: Long) {
+        if (size == values.size) values = values.copyOf(size + size / 2)
+        values[size++] = value
+    }
+
+    fun toArray() = values.copyOf(size)
+}
+
+/** Node density and green/water coverage on a ~100 m cell grid over the data's extent. */
+private class Grid(south: Double, north: Double, west: Double, east: Double) {
+    private val minRow = cellIndex(south) - MARGIN_CELLS
+    private val minColumn = cellIndex(west) - MARGIN_CELLS
+    private val rows = cellIndex(north) - minRow + MARGIN_CELLS + 1
+    private val columns = cellIndex(east) - minColumn + MARGIN_CELLS + 1
+    private val green = BitSet(rows * columns)
+    private val density = ShortArray(rows * columns)
+
+    fun count(latitude: Float, longitude: Float) {
+        val cell = slot(cellIndex(latitude.toDouble()), cellIndex(longitude.toDouble()))
+        if (cell >= 0 && density[cell] < Short.MAX_VALUE) density[cell]++
     }
 
     fun fill(ring: DoubleArray) {
@@ -787,7 +839,11 @@ internal inline fun partition(size: Int, isBefore: (Int) -> Boolean): Int {
 
 private const val EARTH_RADIUS_METERS = 6_371_000.0
 private const val METERS_PER_DEGREE = 111_320.0
+/** Raised whenever the graph file layout changes. */
+private const val FORMAT = 2
 private const val CELLS_PER_DEGREE = 1000
+private const val INDEX_CELLS_PER_DEGREE = 500
+private const val BEARING_STEPS = 256
 private const val ROAD_TOLERANCE_METERS = 6.0
 private const val BEARING_METERS = 15.0
 private const val DECIMETERS = 10.0
@@ -795,7 +851,7 @@ private const val SAMPLE_METERS = 30.0
 private const val CLIMB_THRESHOLD_METERS = 5.0
 private const val MAX_SEARCH_HITS = 3000
 private const val MARGIN_CELLS = 2
-private const val EDGE_BITS = 24
+private const val EDGE_BITS = 26
 private const val EDGE_MASK = (1L shl EDGE_BITS) - 1
 private val SNAP_RADII = listOf(1, 2, 4, 8, 16, 32, 64)
 
@@ -804,5 +860,15 @@ private val CROWDING_STEPS = listOf(40, 150, 400)
 
 private fun cellIndex(degrees: Double) = floor(degrees * CELLS_PER_DEGREE).toInt()
 
+/** Spatial index cells of about 220 m by 150 m: most edges fit in one. */
+private fun indexCell(degrees: Double) = floor(degrees * INDEX_CELLS_PER_DEGREE).toInt()
+
+/** A bearing in 256 steps per turn, one byte each. */
+private fun bearingByte(degrees: Double) =
+    (degrees / 360 * BEARING_STEPS).roundToInt().toByte()
+
+private fun degrees(bearing: Byte) = (bearing.toInt() and 0xFF) * 360.0 / BEARING_STEPS
+
+/** 18 bits of row and 19 bits of column leave [EDGE_BITS] for the edge. */
 private fun cellId(row: Int, column: Int) =
-    ((row + 100_000L) shl 20) or (column + 400_000L)
+    ((row + 90_000L) shl 19) or (column + 180_000L)

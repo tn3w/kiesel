@@ -40,7 +40,7 @@ class Heights internal constructor(
     }
 
     companion object {
-        fun read(file: File) = with(Columns(mapFile(file))) {
+        fun read(file: File) = readColumns(file) {
             val header = ints()
             Heights(header[0], header[1], header[2], header[3], shorts())
         }

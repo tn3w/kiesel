@@ -45,6 +45,7 @@
     <string name="download">ダウンロード</string>
     <string name="import_pack">インポート</string>
     <string name="import_failed">Kiesel の地図パックではありません</string>
+    <string name="import_parts">一部をインポートしました。この地域の残りの部分もインポートしてください。</string>
     <string name="delete">削除</string>
     <plurals name="in_meters">
         <item quantity="other">%1$dメートル先、%2$s</item>

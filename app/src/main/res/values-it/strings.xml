@@ -45,6 +45,7 @@
     <string name="download">Scarica</string>
     <string name="import_pack">Importa</string>
     <string name="import_failed">Non è un pacchetto di mappe Kiesel</string>
+    <string name="import_parts">Parte importata. Importa anche le altre parti di questa regione.</string>
     <string name="delete">Elimina</string>
     <plurals name="in_meters">
         <item quantity="one">Tra %1$d metro, %2$s</item>

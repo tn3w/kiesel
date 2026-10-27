@@ -45,6 +45,7 @@
     <string name="download">Télécharger</string>
     <string name="import_pack">Importer</string>
     <string name="import_failed">Ce n\'est pas un pack de cartes Kiesel</string>
+    <string name="import_parts">Partie importée. Importez aussi les autres parties de cette région.</string>
     <string name="delete">Supprimer</string>
     <plurals name="in_meters">
         <item quantity="one">Dans %1$d mètre, %2$s</item>

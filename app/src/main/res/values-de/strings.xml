@@ -45,6 +45,7 @@
     <string name="download">Herunterladen</string>
     <string name="import_pack">Importieren</string>
     <string name="import_failed">Kein Kiesel-Kartenpaket</string>
+    <string name="import_parts">Teil importiert. Importiere auch die anderen Teile dieser Region.</string>
     <string name="delete">Löschen</string>
     <plurals name="in_meters">
         <item quantity="one">In %1$d Meter %2$s</item>
