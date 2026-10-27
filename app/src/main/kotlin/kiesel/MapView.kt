@@ -308,16 +308,16 @@ private fun showPuck(
     )
 }
 
-/** Navigation tilts and turns the map with travel; browsing just keeps you centered. */
+/** Navigation tilts the map and turns it with the phone; browsing keeps you centered. */
 private fun follow(map: MapLibreMap, model: AppModel, height: Int) {
     val component = map.locationComponent
-    component.renderMode = if (model.navigating) RenderMode.GPS else RenderMode.NORMAL
+    component.renderMode = if (model.navigating) RenderMode.COMPASS else RenderMode.NORMAL
     when {
         model.navigating && model.following -> {
             map.moveCamera(CameraUpdateFactory.paddingTo(0.0, height * 0.45, 0.0, 0.0))
             component.setCameraMode(
-                CameraMode.TRACKING_GPS, CAMERA_MILLIS.toLong(), NAVIGATION_ZOOM, null,
-                NAVIGATION_TILT, null,
+                CameraMode.TRACKING_COMPASS, CAMERA_MILLIS.toLong(), NAVIGATION_ZOOM,
+                null, NAVIGATION_TILT, null,
             )
         }
         model.following -> {
@@ -333,13 +333,12 @@ private fun follow(map: MapLibreMap, model: AppModel, height: Int) {
     }
 }
 
-/** On route, the puck sits on the line and points along it, so it never wobbles. */
+/** On route, the puck sits on the line, so it never wobbles. */
 private fun snapped(location: Location, guidance: Guidance?): Location {
     if (guidance == null || guidance.offRoute) return location
     return Location(location).apply {
         latitude = guidance.position.latitude
         longitude = guidance.position.longitude
-        bearing = guidance.bearing.toFloat()
     }
 }
 

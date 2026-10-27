@@ -29,12 +29,6 @@ data class LatLon(val latitude: Double, val longitude: Double) {
             sin(longitudeDelta / 2).let { it * it }
         return 2 * EARTH_RADIUS_METERS * atan2(sqrt(a), sqrt(1 - a))
     }
-
-    /** Degrees clockwise from north. */
-    fun bearingTo(other: LatLon): Double {
-        val east = (other.longitude - longitude) * cos(Math.toRadians(latitude))
-        return (Math.toDegrees(atan2(east, other.latitude - latitude)) + 360) % 360
-    }
 }
 
 enum class Road(val traffic: Int) {

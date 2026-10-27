@@ -1,6 +1,7 @@
 package kiesel
 
 import android.content.Context
+import android.content.res.Configuration
 import android.icu.text.MeasureFormat
 import android.icu.text.NumberFormat
 import android.icu.util.Measure
@@ -10,6 +11,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice as SpeechVoice
 import app.kiesel.R
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -93,11 +95,13 @@ private fun phraseOf(turn: Turn) = when (turn) {
     Turn.Arrive -> R.string.arrive
 }
 
-/** On-device speech in the app language, using the most natural installed voice. */
+/**
+ * On-device speech with the most natural installed voice: in the app language when a
+ * voice speaks it, otherwise in the language of the engine's default voice.
+ */
 class Voice(private val context: Context) {
     var muted = false
     private var ready = false
-    private var language: Locale? = null
     private val audio = context.getSystemService(AudioManager::class.java)
     private val attributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -119,11 +123,14 @@ class Voice(private val context: Context) {
         })
     }
 
-    fun speak(text: String) {
+    /** [text] is written in the voice's language. */
+    fun speak(text: Context.() -> String) {
         if (muted || !ready) return
-        useLanguage(context.locale)
+        val voice = chooseVoice() ?: return
+        if (engine.voice != voice) engine.voice = voice
+        val spoken = contextFor(voice.locale).text()
         audio.requestAudioFocus(focus)
-        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, text)
+        engine.speak(spoken, TextToSpeech.QUEUE_FLUSH, null, spoken)
     }
 
     fun stop() {
@@ -135,22 +142,39 @@ class Voice(private val context: Context) {
         audio.abandonAudioFocusRequest(focus)
     }
 
-    private fun useLanguage(locale: Locale) {
-        if (locale == language) return
-        language = locale
-        val best = engine.voices.orEmpty()
-            .filter { it.locale.language == locale.language && isOffline(it) }
-            .maxWithOrNull(
-                compareBy(
-                    { it.locale.country == locale.country },
-                    { it.quality },
-                    { -it.latency },
-                ),
-            )
-        if (best != null) engine.voice = best else engine.language = locale
+    private fun chooseVoice(): SpeechVoice? {
+        val installed = engine.voices.orEmpty().filter(::isOffline)
+        val fallback = engine.defaultVoice ?: installed.firstOrNull()
+        return bestFor(installed, context.locale)
+            ?: fallback?.let { bestFor(installed, it.locale) ?: it }
     }
 
-    private fun isOffline(voice: android.speech.tts.Voice) =
+    private fun bestFor(voices: List<SpeechVoice>, locale: Locale) = voices
+        .filter { sameLanguage(it.locale, locale) }
+        .maxWithOrNull(
+            compareBy(
+                { it.locale.country == locale.country },
+                { it.quality },
+                { -it.latency },
+            ),
+        )
+
+    private fun isOffline(voice: SpeechVoice) =
         !voice.isNetworkConnectionRequired &&
             TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in voice.features
+
+    private fun contextFor(locale: Locale): Context {
+        if (sameLanguage(locale, context.locale)) return context
+        val language = Locale.getISOLanguages()
+            .firstOrNull { sameLanguage(Locale.forLanguageTag(it), locale) }
+            ?: locale.language
+        val configuration = Configuration(context.resources.configuration)
+        configuration.setLocale(Locale.forLanguageTag(language))
+        return context.createConfigurationContext(configuration)
+    }
 }
+
+/** Engines name languages by two or three letters: "de" and "deu" are the same. */
+private fun sameLanguage(first: Locale, second: Locale) =
+    runCatching { first.isO3Language == second.isO3Language }
+        .getOrDefault(first.language == second.language)

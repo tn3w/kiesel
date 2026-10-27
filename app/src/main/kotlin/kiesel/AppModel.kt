@@ -299,7 +299,16 @@ class AppModel(private val application: Application) : CoroutineScope by MainSco
         }
     }
 
+    /** Standing still, fixes wander inside their accuracy; only better ones count. */
+    private fun isJitter(update: Location): Boolean {
+        val shown = location ?: return false
+        if (update.accuracy < shown.accuracy) return false
+        val moving = update.hasSpeed() && update.speed >= MOVING_METERS_PER_SECOND
+        return !moving && update.distanceTo(shown) < update.accuracy
+    }
+
     private fun onLocation(update: Location) {
+        if (isJitter(update)) return
         val first = location == null
         location = update
         if (first && destination == null) following = true
@@ -311,13 +320,15 @@ class AppModel(private val application: Application) : CoroutineScope by MainSco
         if (next.offRoute) reroute(point)
     }
 
-    private fun show(next: Guidance, prefix: String? = null) {
+    private fun show(next: Guidance, prefix: Int? = null) {
         guidance = next
-        val spoken = next.announcement?.let(application::spoken)
-        val text = listOfNotNull(prefix, spoken).joinToString(". ")
-        if (text.isEmpty()) return
-        voice.speak(text)
-        if (spoken != null) application.showNavigation(spoken)
+        val announcement = next.announcement
+        announcement?.let { application.showNavigation(application.spoken(it)) }
+        if (announcement == null && prefix == null) return
+        voice.speak {
+            listOfNotNull(prefix?.let { getString(it) }, announcement?.let { spoken(it) })
+                .joinToString(". ")
+        }
     }
 
     private fun reroute(point: LatLon) {
@@ -333,7 +344,7 @@ class AppModel(private val application: Application) : CoroutineScope by MainSco
             if (!navigating) return@launch
             routes = routes + (profile to route)
             val navigator = Navigator(route, mode).also { navigator = it }
-            show(navigator.update(point), application.getString(R.string.rerouting))
+            show(navigator.update(point), R.string.rerouting)
         }
     }
 }
@@ -349,3 +360,4 @@ private const val TILES = "tiles.pmtiles"
 private const val MAX_RESULTS = 8
 private const val LOCATION_INTERVAL_MILLIS = 1000L
 private const val REROUTE_INTERVAL_MILLIS = 8_000L
+private const val MOVING_METERS_PER_SECOND = 0.5f

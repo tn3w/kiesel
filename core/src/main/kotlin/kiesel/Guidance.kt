@@ -88,7 +88,6 @@ class Guidance(
     val remainingMeters: Double,
     val remainingSeconds: Double,
     val position: LatLon,
-    val bearing: Double,
     val offRoute: Boolean,
     val arrived: Boolean,
     val announcement: Announcement?,
@@ -118,7 +117,6 @@ class Navigator(private val route: Route, mode: Mode) {
         val maneuver = route.maneuvers[index]
         val meters = max(0.0, maneuver.meters - fix.along)
         val remaining = route.meters - fix.along
-        val start = route.points[fix.segment]
         return Guidance(
             maneuver = maneuver,
             next = route.maneuvers.getOrNull(index + 1),
@@ -126,7 +124,6 @@ class Navigator(private val route: Route, mode: Mode) {
             remainingMeters = remaining,
             remainingSeconds = route.seconds * remaining / max(route.meters, 1.0),
             position = if (onRoute) fix.point else position,
-            bearing = start.bearingTo(route.points[fix.segment + 1]),
             offRoute = strays >= STRAY_FIXES,
             arrived = onRoute && maneuver.turn == Turn.Arrive && meters <= cues.last(),
             announcement = if (onRoute) announcement(index, meters) else null,

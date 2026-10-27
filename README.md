@@ -9,12 +9,15 @@ as region packs you download in the browser and import into the app.
   tilt, compass when turned. Labels in the app language where OSM has them.
 - **Profiles**: Fastest · Easiest (flat, smooth, few turns, no stairs) · Scenic (parks,
   woods, water) · Quiet (away from busy streets). Walk or Bike (respects one-ways).
-- **Navigation**: tilted follow camera, puck snapped to the route, turn banner with
-  "then" preview, roundabout exits, forks ("keep left"), silent on natural bends,
-  rerouting after two off-route fixes, arrival detection, lock-screen instruction.
+- **Navigation**: tilted follow camera turning with the phone's compass, puck snapped
+  to the route and held still against GPS jitter, turn banner with "then" preview,
+  roundabout exits, forks ("keep left"), silent on natural bends, rerouting after two
+  off-route fixes, arrival detection, lock-screen instruction.
 - **Elevation**: height profile with ascent and descent for every route.
-- **Voice**: on-device Android TTS in the app language; picks the best installed offline
-  voice, ducks music while speaking. Cues: walk 60 m / now, bike 400 m / 120 m / now.
+- **Voice**: on-device Android TTS (any engine: Google, SherpaTTS, RHVoice, eSpeak NG).
+  Speaks the app language when an offline voice for it is installed, otherwise the
+  language of the engine's default voice, with directions in that language. Picks the
+  best voice, ducks music. Cues: walk 60 m / now, bike 400 m / 120 m / now.
 - **Search**: accent-insensitive ("zurich" finds "Zürich"), cities first, then nearest.
   Tap a map label to pick it; hold the map to drop a pin (or set a start without GPS).
 - **Languages**: English, German, Spanish, French, Portuguese, Italian, Russian,
@@ -22,8 +25,9 @@ as region packs you download in the browser and import into the app.
   Vietnamese. Follows the system language; per-app choice in Android settings
   (Android 13+). RTL supported. Units and times via ICU.
 
-Install a natural voice for your language under Android settings → Text-to-speech →
-Google → Install voice data.
+Install a natural voice under Android settings → Text-to-speech output: pick the engine
+and download a voice (Google: Install voice data; SherpaTTS/RHVoice: in their app).
+Without Google services (GrapheneOS), install SherpaTTS or RHVoice from F-Droid.
 
 ## Maps
 
