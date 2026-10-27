@@ -299,16 +299,17 @@ class AppModel(private val application: Application) : CoroutineScope by MainSco
         }
     }
 
-    /** Standing still, fixes wander inside their accuracy; only better ones count. */
-    private fun isJitter(update: Location): Boolean {
-        val shown = location ?: return false
-        if (update.accuracy < shown.accuracy) return false
-        val moving = update.hasSpeed() && update.speed >= MOVING_METERS_PER_SECOND
-        return !moving && update.distanceTo(shown) < update.accuracy
+    /** Measurably moving, clearly sharper, or too far away to be the same spot. */
+    private fun isNewPosition(update: Location): Boolean {
+        val shown = location ?: return true
+        val noise = maxOf(MOVING_METERS_PER_SECOND, update.speedAccuracyMetersPerSecond)
+        return update.speed > noise ||
+            update.accuracy < shown.accuracy / 2 ||
+            update.distanceTo(shown) > update.accuracy + shown.accuracy
     }
 
     private fun onLocation(update: Location) {
-        if (isJitter(update)) return
+        if (!isNewPosition(update)) return
         val first = location == null
         location = update
         if (first && destination == null) following = true
