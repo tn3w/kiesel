@@ -38,7 +38,8 @@ private fun buildTiles(extract: File, work: File, tiles: File): File {
     val planetiler = download(PLANETILER, File(work, "planetiler.jar"))
     val data = File(work, "planetiler").path
     val command = listOf(
-        "java", "-Xmx8g", "-jar", planetiler.path,
+        File(System.getProperty("java.home"), "bin/java").path,
+        "-Xmx8g", "-jar", planetiler.path,
         "--osm-path=${extract.path}",
         "--output=${tiles.path}",
         "--download_dir=$data/sources",
